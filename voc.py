@@ -3,9 +3,12 @@ import subprocess
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from PIL import Image
+import cv2 
 import torch
 from torch.utils.data import Dataset
-
+import albumentations as A
+from albumentations.pytorch import ToTensorV2
+from torch.utils.data import DataLoader
 
 from config_data import VOC_CLASSES, VOC_KAGGLE_DATASETS
 from logger import Logger
@@ -78,19 +81,19 @@ def parse_voc_annotation(annotation_path: Path, class_to_idx: dict) -> dict:
         boxes.append([xmin, ymin, xmax, ymax])
         labels.append(class_to_idx[label])
 
-    boxes_tensor = torch.tensor(boxes, dtype=torch.float32)\
-        if boxes else torch.zeros((0, 4))
+    # boxes_tensor = torch.tensor(boxes, dtype=torch.float32)\
+    #     if boxes else torch.zeros((0, 4))
     labels_tensor = torch.tensor(labels, dtype=torch.int64)\
         if labels else torch.zeros(0, dtype=torch.int64)
 
     return {
-        'boxes': boxes_tensor,
+        "boxes": boxes,
         'labels': labels_tensor,
-        'image_id': torch.tensor([int(annotation_path.stem)]),
-        'area': (boxes_tensor[:, 3] - boxes_tensor[:, 1]) * (boxes_tensor[:, 2] - boxes_tensor[:, 0])\
-            if len(boxes) > 0 else torch.zeros(0),
-        'iscrowd': torch.zeros(len(boxes), dtype=torch.int64) if boxes else torch.zeros(0, dtype=torch.int64),
-        'orig_size': torch.tensor([height, width])
+        # 'image_id': torch.tensor([int(annotation_path.stem)]),
+        # 'area': (boxes_tensor[:, 3] - boxes_tensor[:, 1]) * (boxes_tensor[:, 2] - boxes_tensor[:, 0])\
+        #     if len(boxes) > 0 else torch.zeros(0),
+        # 'iscrowd': torch.zeros(len(boxes), dtype=torch.int64) if boxes else torch.zeros(0, dtype=torch.int64),
+        # 'orig_size': torch.tensor([height, width])
     }
 
 
@@ -235,11 +238,13 @@ class VOCDataset(Dataset):
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, dict]:
         img_path = self.images[idx]
         ann_path = self.annotations[idx]
-
-        image = Image.open(img_path).convert("RGB")
+        image = cv2.imread(img_path)
+        # image = Image.open(img_path).convert("RGB")
         target = parse_voc_annotation(ann_path, self.class_to_idx)
         if self.transform:
-            image, target = self.transform(image, target)
+            transformed = self.transform(image=image, bboxes=target["boxes"])
+            image = transformed["image"]
+            target["boxes"] = transformed["bboxes"]
         return image, target
 
 
@@ -262,6 +267,35 @@ def test_voc_dataset():
     print("Target keys:", target.keys())
     print(target)
 
+def collate_fn(batch):
+    for item in batch:
+        item[1]["boxes"] = torch.tensor(item[1]["boxes"], dtype=torch.float32)
+    return torch.stack([item[0] for item in batch]), [item[1] for item in batch]
+
+def get_dataloader(split : str, year : str, batch_size : int, transform : None,  download : bool = False, shuffle : bool = True):
+    ds = VOCDataset(
+        root="VOC",         
+        split=split,
+        years=[year],
+        download=download,
+        transform=transform,
+        details=None,
+    )
+    return DataLoader(ds, batch_size=batch_size, shuffle=shuffle, num_workers=4, collate_fn=collate_fn) 
+
+
 
 if __name__ == "__main__":
-    test_voc_dataset()
+    # TODO YOU DEFINETELY HAVE TO PASS A TRANSFORMATION OTHERWISE IT WILL BREAK DUE TO DIFFERNT SIZE IMAGES
+    IMAGENET_MEAN = (0.485, 0.456, 0.406)
+    IMAGENET_STD  = (0.229, 0.224, 0.225)
+    train_labeled_transforms = A.Compose([
+    A.Resize(300, 300),         
+    A.HorizontalFlip(p=1.0),
+    A.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
+    ToTensorV2(),
+    ], bbox_params=A.BboxParams(format='pascal_voc'))
+    train_dt = get_dataloader("train", "2007", transform=train_labeled_transforms, batch_size=32, shuffle=False)
+    images, data = next(iter(train_dt))
+    print(len(images), images.shape, images[0].shape)
+    print(len(data), data[0])
