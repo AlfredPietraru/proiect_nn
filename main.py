@@ -27,7 +27,7 @@ METRICS_UNSUPERVISED = ["loss_classifier", "loss_objectness"]
 VALIDATION_METRICS = ["mAP_50", "mAP_5095", "precision", "recall", "f1"]
 LAMBDA_UNSUPERVISED = 5.0
 NMS_IOU = 0.5
-ITERATION_TO_STOP_AT = 5
+ITERATION_TO_STOP_AT = 5000
 
 os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
