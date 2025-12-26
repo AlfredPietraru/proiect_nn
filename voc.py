@@ -236,6 +236,7 @@ class VOCDataset(Dataset):
 
     def __len__(self) -> int:
         return len(self.images)
+        # return 32
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, dict]:
         image = cv2.imread(filename=str(self.images[idx]))
@@ -281,15 +282,15 @@ def get_dataloaders(size : Tuple[int, int], batch_size : int, download : bool) -
     ], bbox_params=A.BboxParams(format='pascal_voc'))
 
 
-    ds_train_labeled = VOCDataset(root="VOC", split="trainval", years=["2007"], transform=weak_augmentations, download=download details=None)
+    ds_train_labeled = VOCDataset(root="VOC", split="trainval", years=["2007"], transform=weak_augmentations, download=download, details=None)
     ds_train_unlabeled_weakaug = VOCDataset(root="VOC", split="trainval", years=["2012"], transform=weak_augmentations,  download=download, details=None)
     ds_train_unlabeled_strongaug = VOCDataset(root="VOC", split="trainval", years=["2012"], transform=strong_augmentations, details=None)
     ds_test = VOCDataset(root="VOC", split="test", years=["2007"], transform=test_transforms, details=None)
 
-    dt_train_labeled = DataLoader(ds_train_labeled, batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-    dt_train_unlabeled_weakaug =  DataLoader(ds_train_unlabeled_weakaug, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
-    dt_train_unlabeled_strongaug = DataLoader(ds_train_unlabeled_strongaug, batch_size=batch_size, shuffle=True,collate_fn=collate_fn)
-    dt_test = DataLoader(ds_test, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
+    dt_train_labeled = DataLoader(ds_train_labeled, batch_size=batch_size, shuffle=True, collate_fn=collate_fn, num_workers=4) 
+    dt_train_unlabeled_weakaug =  DataLoader(ds_train_unlabeled_weakaug, batch_size=batch_size, shuffle=True, collate_fn=collate_fn, num_workers=4)
+    dt_train_unlabeled_strongaug = DataLoader(ds_train_unlabeled_strongaug, batch_size=batch_size, shuffle=True,collate_fn=collate_fn, num_workers=4)
+    dt_test = DataLoader(ds_test, batch_size=batch_size, shuffle=False, collate_fn=collate_fn, num_workers=4)
     return {
         "burn_in":    dt_train_labeled,
         "train_weak":  dt_train_unlabeled_weakaug,
