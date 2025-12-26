@@ -246,7 +246,7 @@ class VOCDataset(Dataset):
         return image, target
 
 
-def get_dataloaders(size : Tuple[int, int], batch_size : int) -> dict[str, DataLoader]:
+def get_dataloaders(size : Tuple[int, int], batch_size : int, download : bool) -> dict[str, DataLoader]:
     def collate_fn(batch):
         for item in batch:
             item[1]["boxes"] = torch.tensor(item[1]["boxes"], dtype=torch.float32)
@@ -281,8 +281,8 @@ def get_dataloaders(size : Tuple[int, int], batch_size : int) -> dict[str, DataL
     ], bbox_params=A.BboxParams(format='pascal_voc'))
 
 
-    ds_train_labeled = VOCDataset(root="VOC", split="trainval", years=["2007"], transform=weak_augmentations, details=None)
-    ds_train_unlabeled_weakaug = VOCDataset(root="VOC", split="trainval", years=["2012"], transform=weak_augmentations, details=None)
+    ds_train_labeled = VOCDataset(root="VOC", split="trainval", years=["2007"], transform=weak_augmentations, download=download details=None)
+    ds_train_unlabeled_weakaug = VOCDataset(root="VOC", split="trainval", years=["2012"], transform=weak_augmentations,  download=download, details=None)
     ds_train_unlabeled_strongaug = VOCDataset(root="VOC", split="trainval", years=["2012"], transform=strong_augmentations, details=None)
     ds_test = VOCDataset(root="VOC", split="test", years=["2007"], transform=test_transforms, details=None)
 

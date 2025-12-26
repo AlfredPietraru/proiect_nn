@@ -194,7 +194,7 @@ def run_semi_supervised_pipeline(checkpoint_path, epochs, data : dict[str, DataL
 
 
 os.makedirs(CHECKPOINT_DIR, exist_ok=True)
-data = get_dataloaders(SIZE, BATCH_SIZE)
+data = get_dataloaders(SIZE, BATCH_SIZE, False)
 pipeline_burn_in(50, data, device, 5)
 checkpoint_path="checkpoints/checkpoint_epoch_50.pth"
 run_semi_supervised_pipeline(checkpoint_path, 50, data)
