@@ -5,7 +5,7 @@ from pathlib import Path
 from PIL import Image
 import cv2 
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 from torch.utils.data import DataLoader
@@ -238,11 +238,8 @@ class VOCDataset(Dataset):
         return len(self.images)
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, dict]:
-        img_path = self.images[idx]
-        ann_path = self.annotations[idx]
-        image = cv2.imread(filename=img_path)
-        # image = Image.open(img_path).convert("RGB")
-        target = parse_voc_annotation(ann_path, self.class_to_idx)
+        image = cv2.imread(filename=str(self.images[idx]))
+        target = parse_voc_annotation(self.annotations[idx], self.class_to_idx)
         if self.transform:
             transformed = self.transform(image=image, bboxes=target["boxes"])
             image, target["boxes"] = transformed["image"], transformed["bboxes"]
@@ -289,10 +286,10 @@ def get_dataloaders(size : Tuple[int, int], batch_size : int) -> dict[str, DataL
     ds_train_unlabeled_strongaug = VOCDataset(root="VOC", split="trainval", years=["2012"], transform=strong_augmentations, details=None)
     ds_test = VOCDataset(root="VOC", split="test", years=["2007"], transform=test_transforms, details=None)
 
-    dt_train_labeled = DataLoader(ds_train_labeled, batch_size=batch_size, shuffle=True, num_workers=4, collate_fn=collate_fn) 
-    dt_train_unlabeled_weakaug =  DataLoader(ds_train_unlabeled_weakaug, batch_size=batch_size, shuffle=True, num_workers=4, collate_fn=collate_fn)
-    dt_train_unlabeled_strongaug = DataLoader(ds_train_unlabeled_strongaug, batch_size=batch_size, shuffle=True, num_workers=4, collate_fn=collate_fn)
-    dt_test = DataLoader(ds_test, batch_size=batch_size, shuffle=False, num_workers=4, collate_fn=collate_fn)
+    dt_train_labeled = DataLoader(ds_train_labeled, batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+    dt_train_unlabeled_weakaug =  DataLoader(ds_train_unlabeled_weakaug, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
+    dt_train_unlabeled_strongaug = DataLoader(ds_train_unlabeled_strongaug, batch_size=batch_size, shuffle=True,collate_fn=collate_fn)
+    dt_test = DataLoader(ds_test, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
     return {
         "burn_in":    dt_train_labeled,
         "train_weak":  dt_train_unlabeled_weakaug,

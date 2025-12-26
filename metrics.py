@@ -310,7 +310,7 @@ class DetectionMetrics:
         _, _, f1 = self.prec_rec_f1(pr_stats)
         return f1
 
-    def compute(self) -> dict[str, object]:
+    def compute(self) -> dict[str, float]:
         avg_per_per_cls, pr_stats = self.metrics_core()
         num_classes = self.num_classes()
         iou_thresholds = self.cfg.iou_thresholds
