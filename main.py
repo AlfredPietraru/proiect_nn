@@ -16,7 +16,7 @@ from main_utils import (
 set_seed(42)
 SIZE = (128, 128)
 CONFIDENCE_THRESHOLD = 0.7
-BATCH_SIZE = 2
+BATCH_SIZE = 8
 CHECKPOINT_DIR = "./checkpoints"
 METRIC_BURN_IN = ["loss_classifier", "loss_box_reg", "loss_objectness", "loss_rpn_box_reg", "total"]
 METRIC_SUPERVISED = ["loss_classifier", "loss_box_reg", "loss_objectness", "loss_rpn_box_reg"]
@@ -145,28 +145,26 @@ def train_semi_supervised_one_epoch(teacher : RobustEMA, student, optimizer, dat
 
 # TODO de schimbat aici la validaree student.train() si de sters torch.no_grad()
 def validate_semi_supervised(student, dt_test, device, cfg_metrics : Metrics):
-    student.train()
+    student.eval()
     metrics = DetectionMetrics(cfg_metrics)
     metrics.reset()
-    validation_loss = 0
     
-    
-    for idx, (images, targets) in enumerate(tqdm((dt_test), desc="Validation")):
+    with torch.no_grad():
+        for idx, (images, targets) in enumerate(tqdm((dt_test), desc="Validation")):
             if idx == ITERATION_TO_STOP_AT: break
             for target in targets:
                 target["boxes"] = target["boxes"].to(device)
                 target["labels"] = target["labels"].to(device)
             images = [img.to(device) for img in images]
             outputs, loss_dict = student(images, targets)
-            validation_loss += sum(loss_dict.values())
             preds_bl = [BoxList(o["boxes"], o["labels"], o.get("scores", None), (images[0].shape[1], images[0].shape[2])) for o in outputs]
             tgts_bl  = [BoxList(t["boxes"], t["labels"], t.get("scores", None), (images[0].shape[1], images[0].shape[2])) for t in targets]
             metrics.update(preds_bl, tgts_bl)     
-    return metrics.compute(), validation_loss / max(1, len(dt_test))
+    return metrics.compute()
     
 
 def run_semi_supervised_pipeline(checkpoint_path, epochs, data : dict[str, DataLoader]):
-    student, _, _ = load_checkpoint(checkpoint_path=checkpoint_path, optimizer=None, device=device)
+    student, _, _ = load_checkpoint(checkpoint_path=checkpoint_path, freeze_backbone=True, optimizer=None, device=device)
     teacher = RobustEMA(student)
     optimizer = torch.optim.SGD(student.parameters(), lr=1e-3, momentum=0.9)
     lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", factor=0.1, patience=2, threshold=1e-3, min_lr=1e-6)
@@ -177,17 +175,13 @@ def run_semi_supervised_pipeline(checkpoint_path, epochs, data : dict[str, DataL
     for epoch in range(epochs):
         print(f"\n==================== Epoch {epoch+1}/{epochs} ====================\n")
         train_hist_supervised, train_hist_unsupervised, train_loss = train_semi_supervised_one_epoch(teacher, student, optimizer, data)
-        validation_history, validation_loss = validate_semi_supervised(student, data["test"], device, cfg_metrics)
-        print(train_loss, validation_loss)
-        lr_scheduler.step(validation_loss)
-        early_stopper.step(validation_loss)
-        plotter.add_data(train_hist_supervised, train_hist_unsupervised, train_loss, validation_history, validation_loss)
+        validation_history  = validate_semi_supervised(student, data["test"], device, cfg_metrics)
+        # lr_scheduler.step(validation_loss)
+        # early_stopper.step(validation_loss)
+        plotter.add_data(train_hist_supervised, train_hist_unsupervised, train_loss, validation_history)
         plotter.plot_losses(save_dir="graphs")
         plotter.plot_eval_metrics(save_dir="graphs")
 
-        if validation_history["validation_loss"] == early_stopper.best_loss:
-            save_checkpoint(student, optimizer, epoch+1, "semi_supervised_results.pth")
-        
         if early_stopper.should_stop:
             print("\nEARLY STOPPING TRIGGERED — Training stopped.\n")
             break
@@ -195,6 +189,6 @@ def run_semi_supervised_pipeline(checkpoint_path, epochs, data : dict[str, DataL
 
 os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 data = get_dataloaders(SIZE, BATCH_SIZE, False)
-pipeline_burn_in(50, data, device, 5)
-checkpoint_path="checkpoints/checkpoint_epoch_50.pth"
+# pipeline_burn_in(50, data, device, 5)
+checkpoint_path="checkpoints/checkpoint_epoch_10.pth"
 run_semi_supervised_pipeline(checkpoint_path, 50, data)

@@ -25,13 +25,13 @@ def save_checkpoint(model, optimizer, epoch, path):
     torch.save(checkpoint, path)
     print(f"Checkpoint saved at {path}")
 
-def load_checkpoint(checkpoint_path, optimizer=None, device='cuda'):
+def load_checkpoint(checkpoint_path, freeze_backbone : bool, optimizer=None, device='cuda'):
     if not os.path.exists(checkpoint_path):
         raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
 
     checkpoint = torch.load(checkpoint_path, map_location=device)
     
-    model = get_model(device=device)
+    model = get_model(device=device, freeze_backbone=freeze_backbone)
     model.load_state_dict(checkpoint['model_state_dict'])
     print(f"Model weights loaded from {checkpoint_path}")
 
@@ -78,7 +78,6 @@ class HarryPlotterSemiSupervised:
 
         # Evaluation history
         self.history_eval = {k: [] for k in eval_metrics}
-        self.history_eval_loss = []
 
     def add_train_data(self, supervised: dict, unsupervised: dict, total_loss: float):
         for k, v in supervised.items():
@@ -89,15 +88,14 @@ class HarryPlotterSemiSupervised:
                 self.history_unsupervised[k].append(v)
         self.history_total_loss.append(total_loss)
 
-    def add_eval_data(self, eval_history: dict, validation_loss: float):
+    def add_eval_data(self, eval_history: dict):
         for key, val in eval_history.items():
             if key in self.history_eval:
                 self.history_eval[key].append(val)
-        self.history_eval_loss.append(validation_loss)
 
-    def add_data(self, supervised : dict, unsupervised : dict, total_loss : float, eval_history : dict, validation_loss : float):
+    def add_data(self, supervised : dict, unsupervised : dict, total_loss : float, eval_history : dict):
         self.add_train_data(supervised, unsupervised, total_loss)
-        self.add_eval_data(eval_history, validation_loss)
+        self.add_eval_data(eval_history)
 
     def plot_losses(self, save_dir=None, filename="semi_train_loss.png"):
         sns.set_theme(style="whitegrid")
@@ -112,7 +110,6 @@ class HarryPlotterSemiSupervised:
         #     plt.plot(epochs, self.history_unsupervised[k], label=f"{k} (unsup)", linewidth=2)
         # Total loss
         plt.plot(epochs, self.history_total_loss, label="Total Loss", linewidth=2, color="black")
-        plt.plot(epochs, self.history_eval_loss, label="Validation Loss", linewidth=2, color="black")
 
         plt.title("Training Loss Components Over Epochs")
         plt.xlabel("Epoch")
@@ -129,7 +126,7 @@ class HarryPlotterSemiSupervised:
     def plot_eval_metrics(self, save_dir=None, filename="semi_eval_metrics.png"):
         sns.set_theme(style="whitegrid")
         plt.figure(figsize=(10, 6))
-        epochs = range(1, len(self.history_eval_loss) + 1)
+        epochs = range(1, len(self.history_total_loss) + 1)
         for key in self.eval_metrics:
             plt.plot(epochs, self.history_eval[key], label=key, linewidth=2)
 
