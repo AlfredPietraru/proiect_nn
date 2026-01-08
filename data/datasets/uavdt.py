@@ -8,8 +8,8 @@ import cv2
 import torch
 from torch.utils.data import Dataset
 
-from config import UAVDT_NAME_TO_ID, UAVDT_CLASSES
-from download import download_uavdt
+from data.datasets.config import UAVDT_NAME_TO_ID, UAVDT_CLASSES
+from data.datasets.download import download_uavdt
 from utils.logger import Logger
 
 

@@ -8,8 +8,8 @@ import cv2
 import torch
 from torch.utils.data import Dataset
 
-from config import VISDRONE_CLASSES, VISDRONE_NAME_TO_ID
-from download import download_visdrone
+from data.datasets.config import VISDRONE_CLASSES, VISDRONE_NAME_TO_ID
+from data.datasets.download import download_visdrone
 from utils.logger import Logger
 
 

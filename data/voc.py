@@ -106,7 +106,7 @@ class VOCDataset(Dataset):
         split: str = "train",
         years: list[str] | None = None,
         transform=None,
-        download: bool = False,
+        download: bool = True,
         details: Logger | None = None,
     ):
         assert split in ["train", "trainval", "val", "test", "train_test"], "Invalid split name"

@@ -51,7 +51,7 @@ class DataCfg:
     batch_size: int = 8
     num_workers: int = 4
     pin_memory: bool = True
-    download: bool = True
+    download: bool = False
 
     labeled_percent: float = 0.10
     unsup_batch_ratio: float = 1.0

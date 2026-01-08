@@ -3,14 +3,14 @@ from __future__ import annotations
 from typing import Tuple, Dict
 from torch.utils.data import DataLoader
 
-from augmentations import build_detection_transforms
+from data.augmentations import build_detection_transforms
 
-from datasets.auair import AUAIRDataset
-from datasets.uavdt import UAVDTDataset
-from datasets.visdrone import VisDroneDataset
-from datasets.voc import VOCDataset
+from data.datasets.auair import AUAIRDataset
+from data.datasets.uavdt import UAVDTDataset
+from data.datasets.visdrone import VisDroneDataset
+from data.datasets.voc import VOCDataset
 
-from unbiased import UnlabeledDataset
+from data.unbiased import UnlabeledDataset
 
 from models.hyperparams import ExperimentConfig
 from utils.logger import Logger

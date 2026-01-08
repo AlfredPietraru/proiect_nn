@@ -9,8 +9,8 @@ import cv2
 import torch
 from torch.utils.data import Dataset
 
-from config import VOC_CLASSES
-from download import download_voc
+from data.datasets.config import VOC_CLASSES
+from data.datasets.download import download_voc
 from utils.logger import Logger
 
 
@@ -133,7 +133,7 @@ class VOCDataset(Dataset):
         split: str = "train",
         years: Tuple[str, ...] = ("2007", "2012"),
         transform: Optional[A.Compose] = None,
-        download: bool = False,
+        download: bool = True,
     ) -> None:
         assert split in {"train", "trainval", "val", "test", "train_test"}
         assert all(y in {"2007", "2012"} for y in years)

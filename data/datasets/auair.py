@@ -9,9 +9,9 @@ import cv2
 import torch
 from torch.utils.data import Dataset
 
-from config import AUAIR_CLASSES, AUAIR_NAME_TO_ID
-from download import download_auair
-from utils.logger import Logger
+from data.datasets.config import AUAIR_CLASSES, AUAIR_NAME_TO_ID
+from data.datasets.download import download_auair
+from utils.logger import Logger 
 
 
 def load_auair_index(root: Path, split: str) -> Tuple[List[Path], Dict[str, List[dict]]]:
