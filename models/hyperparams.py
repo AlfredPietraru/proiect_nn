@@ -5,7 +5,7 @@ from typing import Literal, Optional
 
 
 DatasetName = Literal["voc", "visdrone", "uavdt", "auair"]
-ArchName = Literal["fasterrcnn_resnet50", "resnet50_gradcampp", "yolo11n"]
+ArchName = Literal["fasterrcnn", "resnet50_gradcampp", "yolo11n"]
 OptName = Literal["sgd", "adamw", "adam"]
 SchedName = Literal["cosine", "multistep"]
 KDDKind = Literal["weakstrong", "cross_dataset", "feature", "box_match", "combo"]
@@ -67,7 +67,7 @@ class DataCfg:
 
 @dataclass
 class ModelCfg:
-    arch: ArchName = "fasterrcnn_resnet50"
+    arch: ArchName = "fasterrcnn"
     num_classes: int = 20
 
     pretrained: bool = True

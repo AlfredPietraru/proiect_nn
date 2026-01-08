@@ -7,7 +7,7 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 
 
-def normalize(image: np.ndarray) -> np.ndarray:
+def normalize(image: np.ndarray, **kwargs) -> np.ndarray:
     return image.astype(np.float32) / 255.0
 
 
@@ -16,7 +16,8 @@ def build_detection_transforms(size: Tuple[int, int]) -> Dict[str, A.Compose]:
     # Pascal VOC format for bounding boxes: (xmin, ymin, xmax, ymax)
     # Bounding box parameters x1,y1,x2,y2, this format will work for all the datasets
     # all are applied on same bbox format
-    bbox_params = A.BboxParams(format="pascal_voc", label_fields=["labels"])
+    # bbox_params = A.BboxParams(format="pascal_voc", label_fields=["labels"])
+    bbox_params = A.BboxParams(format="pascal_voc")
 
     weak = A.Compose([A.Resize(h, w), A.Lambda(image=normalize), ToTensorV2()], bbox_params=bbox_params)
     strong = A.Compose([
@@ -27,6 +28,7 @@ def build_detection_transforms(size: Tuple[int, int]) -> Dict[str, A.Compose]:
         A.Lambda(image=normalize),
         ToTensorV2(),
     ], bbox_params=bbox_params)
+
     test = A.Compose([A.Resize(h, w), A.Lambda(image=normalize), ToTensorV2()], bbox_params=bbox_params)
 
     return {"weak": weak, "strong": strong, "test": test}

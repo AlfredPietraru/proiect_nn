@@ -38,13 +38,13 @@ def get_dataloaders_voc(
     strong_augmentations = tfms["strong"]
     test_transforms = tfms["test"]
 
-    # Labeled dataset (burn-in): VOC 2007 trainval
-    ds_train_labeled = VOCDataset(details, root, "trainval", ("2007",), weak_augmentations, download)
-    ds_test = VOCDataset(details, root, "test", ("2007",), test_transforms, download)
-
     # Unlabeled base dataset: VOC 2012 trainval (NO transform here) - for teacher SSL
     ds_train_unlabeled = VOCDataset(details, root, "trainval", ("2012",), None, download)
     ds_train_unlabeled = UnlabeledDataset(ds_train_unlabeled, weak_augmentations, strong_augmentations)
+
+    # Labeled dataset (burn-in): VOC 2007 trainval
+    ds_train_labeled = VOCDataset(details, root, "trainval", ("2007",), weak_augmentations, download)
+    ds_test = VOCDataset(details, root, "test", ("2007",), test_transforms, download)
 
     loader_train_labeled = DataLoader(
         ds_train_labeled, batch_size, 
