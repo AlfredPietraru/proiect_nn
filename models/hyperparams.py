@@ -67,7 +67,7 @@ class DataCfg:
 
 @dataclass
 class ModelCfg:
-    arch: ArchName = "fasterrcnn"
+    arch: ArchName = "resnet50_gradcampp"
     num_classes: int = 20
 
     pretrained: bool = True

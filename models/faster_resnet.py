@@ -38,9 +38,9 @@ class FasterRCNNResNet50FPN(nn.Module):
         self.transform.max_size = s
         self.max_det = max_det
 
-    @property
-    def device(self) -> torch.device:
-        return next(self.backbone.model.parameters()).device
+    # @property
+    # def device(self) -> torch.device:
+    #     return next(self.backbone.model.parameters()).device
 
     def forward(
         self,
@@ -48,7 +48,7 @@ class FasterRCNNResNet50FPN(nn.Module):
         targets: Optional[List[Dict[str, torch.Tensor]]] = None,
     ) -> Tuple[List[Dict[str, torch.Tensor]], Dict[str, torch.Tensor]]:
         x_list = self.as_image_list(images)
-        x_list = [im.to(self.device, non_blocking=True) for im in x_list]
+        # x_list = [im for im in x_list]
         original_sizes = [im.shape[-2:] for im in x_list]
 
         if targets is not None:

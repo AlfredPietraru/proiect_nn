@@ -28,11 +28,10 @@ def train_burn_in_one_epoch(
     steps = 0
 
     loader = data["train_burn_in_strong"]
-
     for step_idx, (images, targets) in enumerate(tqdm(loader, desc="Burn-in train")):
         if step_idx >= max_iter:
             break
-
+        
         images = move_images_to_device(images, device)
         targets = move_targets_to_device(targets, device)
 

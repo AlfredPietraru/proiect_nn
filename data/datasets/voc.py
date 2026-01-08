@@ -243,7 +243,6 @@ class VOCDataset(Dataset):
         if self.transform:
             transformed = self.transform(image=image, bboxes=target["boxes"])
             image, target["boxes"] = transformed["image"], transformed["bboxes"]
-            print(type(target["boxes"]))
         return torch.Tensor(image), target
 
 

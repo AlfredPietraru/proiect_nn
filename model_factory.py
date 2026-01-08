@@ -13,7 +13,7 @@ def build_model(cfg: ExperimentConfig) -> torch.nn.Module:
 
     if arch == "fasterrcnn":
         return get_model_fasterrcnn(cfg=cfg)
-    if arch == "gradcam_resnet":
+    if arch == "resnet50_gradcampp":
         return get_model_resnet_gradcam(cfg=cfg)
     if arch == "yolo11":
         return get_model_yolo11(cfg=cfg)
