@@ -21,7 +21,8 @@ def get_dataloaders_voc(
     details: Logger,
     size: Tuple[int, int], batch_size: int,
     num_workers: int, pin_memory: bool,
-    download: bool = True
+    download: bool = True,
+    percentage : float = 1.0,
 ) -> Dict[str, DataLoader]:
     def collate_labeled(batch):
         images = [item[0] for item in batch]
@@ -39,12 +40,12 @@ def get_dataloaders_voc(
     test_transforms = tfms["test"]
 
     # Unlabeled base dataset: VOC 2012 trainval (NO transform here) - for teacher SSL
-    ds_train_unlabeled = VOCDataset(details, root, "trainval", ("2012",), None, download)
+    ds_train_unlabeled = VOCDataset(details, root, "trainval", ("2012",), None, download, percentage)
     ds_train_unlabeled = UnlabeledDataset(ds_train_unlabeled, weak_augmentations, strong_augmentations)
 
     # Labeled dataset (burn-in): VOC 2007 trainval
-    ds_train_labeled = VOCDataset(details, root, "trainval", ("2007",), weak_augmentations, download)
-    ds_test = VOCDataset(details, root, "test", ("2007",), test_transforms, download)
+    ds_train_labeled = VOCDataset(details, root, "trainval", ("2007",), weak_augmentations, download, percentage)
+    ds_test = VOCDataset(details, root, "test", ("2007",), test_transforms, download, percentage)
 
     loader_train_labeled = DataLoader(
         ds_train_labeled, batch_size, 
@@ -226,6 +227,7 @@ def build_dataloaders(cfg: ExperimentConfig) -> Dict[str, DataLoader]:
             batch_size=cfg.data.batch_size, size=size,
             num_workers=cfg.data.num_workers,
             pin_memory=cfg.data.pin_memory,
+            percentage=cfg.data.percentage,
         )
     if ds == "visdrone":
         return get_dataloaders_visdrone(

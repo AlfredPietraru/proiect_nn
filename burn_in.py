@@ -12,7 +12,7 @@ from model_factory import build_model
 from models.scheduler import build_scheduler
 from models.hyperparams import ExperimentConfig
 from data.visualize.training_curves import TrainingCurveSupervised
-
+from time import sleep
 
 def train_burn_in_one_epoch(
     model: torch.nn.Module,

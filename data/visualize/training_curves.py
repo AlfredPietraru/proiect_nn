@@ -4,6 +4,8 @@ import os
 from typing import Dict, List
 
 from loguru import logger
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 

@@ -41,6 +41,7 @@ def dataset_max_objects(dataset: str) -> int:
 class DataCfg:
     dataset: DatasetName = "voc"
     root: str = "datasets"
+    percentage = 0.05
 
     voc_dir: str = "VOC"
     visdrone_dir: str = "VisDrone"
@@ -67,7 +68,7 @@ class DataCfg:
 
 @dataclass
 class ModelCfg:
-    arch: ArchName = "resnet50_gradcampp"
+    arch: ArchName = "fasterrcnn"
     num_classes: int = 20
 
     pretrained: bool = True
@@ -108,7 +109,7 @@ class SchedCfg:
 @dataclass
 class TrainCfg:
     device: str = "cuda:0"
-    epochs: int = 80
+    epochs: int = 10
     use_amp: bool = True
     max_grad_norm: float | None = None
 

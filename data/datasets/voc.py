@@ -2,7 +2,6 @@ import shutil
 import subprocess
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from PIL import Image
 import cv2 
 import torch
 from torch.utils.data import Dataset, DataLoader
@@ -10,6 +9,7 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 from torch.utils.data import DataLoader
 import numpy as np
+import random
 
 from data.datasets.config import VOC_CLASSES, VOC_KAGGLE_DATASETS
 from utils.logger import Logger
@@ -85,12 +85,12 @@ def parse_voc_annotation(annotation_path: Path, class_to_idx: dict) -> dict:
 
     # boxes_tensor = torch.tensor(boxes, dtype=torch.float32)\
     #     if boxes else torch.zeros((0, 4))
-    labels_tensor = torch.tensor(labels, dtype=torch.int64)\
-        if labels else torch.zeros(0, dtype=torch.int64)
+    # labels_tensor = torch.tensor(labels, dtype=torch.int64)\
+    #     if labels else torch.zeros(0, dtype=torch.int64)
 
     return {
         "boxes": boxes,
-        'labels': labels_tensor,
+        'labels': labels,
         # 'image_id': torch.tensor([int(annotation_path.stem)]),
         # 'area': (boxes_tensor[:, 3] - boxes_tensor[:, 1]) * (boxes_tensor[:, 2] - boxes_tensor[:, 0])\
         #     if len(boxes) > 0 else torch.zeros(0),
@@ -108,6 +108,7 @@ class VOCDataset(Dataset):
         years: tuple[str] | None = None,
         transform=None,
         download: bool = False,
+        percentage : float = 1.0
     ):
         assert split in ["train", "trainval", "val", "test", "train_test"], "Invalid split name"
         assert years is None or all(year in ["2007", "2012"] for year in years), \
@@ -124,7 +125,7 @@ class VOCDataset(Dataset):
         # Download dataset if requested
         if download:
             self.download()
-        self.images, self.annotations = self.load_data()
+        self.images, self.annotations = self.load_data(percentage)
 
     def download(self) -> None:
         """Download Pascal VOC from Kaggle directly to correct path structure."""
@@ -164,7 +165,7 @@ class VOCDataset(Dataset):
             if self.details:
                 self.details.info(f"VOC{year} downloaded to: {target_dir}")
 
-    def load_data(self) -> tuple[list[Path], list[Path]]:
+    def load_data(self, percentage : float = 1.0) -> tuple[list[Path], list[Path]]:
         """Load image and annotation file paths for the specified split and years."""
         images: list[Path] = []
         annotations: list[Path] = []
@@ -232,67 +233,24 @@ class VOCDataset(Dataset):
 
         if self.details:
             self.details.info(f"Loaded {len(images)} images for split='{self.split}'")
-        return images, annotations
+        n = len(images)
+        k = max(1, int(round(n * percentage)))
+        indices = list(range(n))
+        random.shuffle(indices)
+        indices = indices[:k]
+        sampled_images = [images[i] for i in indices]
+        sampled_annotations = [annotations[i] for i in indices]
+        return sampled_images, sampled_annotations
 
     def __len__(self) -> int:
         return len(self.images)
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, dict]:
-        image = cv2.imread(filename=str(self.images[idx]))
+        image = np.array(cv2.imread(filename=str(self.images[idx])))
         target = parse_voc_annotation(self.annotations[idx], self.class_to_idx)
         if self.transform:
-            transformed = self.transform(image=image, bboxes=target["boxes"])
-            image, target["boxes"] = transformed["image"], transformed["bboxes"]
-        return torch.Tensor(image), target
-
-
-def get_dataloaders(size : Tuple[int, int], batch_size : int, download : bool) -> dict[str, DataLoader]:
-    def collate_fn(batch):
-        for item in batch:
-            item[1]["boxes"] = torch.tensor(item[1]["boxes"], dtype=torch.float32)
-        return [item[0] for item in batch], [item[1] for item in batch]
-    
-    def scale_to_01(image, **kwargs):
-        return image.astype('float32') / 255.0
-
-    weak_augmentations = A.Compose([
-        A.Resize(size[0], size[1]),         
-        A.Lambda(image=scale_to_01), 
-        ToTensorV2(),
-    ], bbox_params=A.BboxParams(format='pascal_voc'))
-
-    strong_augmentations = A.Compose(
-        [
-            A.Resize(size[0], size[1]),
-            A.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4, hue=0.1, p=0.8),
-            A.GaussianBlur(blur_limit=(3, 7), sigma_limit=(0.1, 2.0), p=0.5),
-            A.CoarseDropout(num_holes_range=(3, 3), hole_height_range=(0.05, 0.1),
-                             hole_width_range=(0.05, 0.1), p=0.5),
-            A.Lambda(image=scale_to_01), 
-            ToTensorV2(),
-        ],
-        bbox_params=A.BboxParams(format='pascal_voc')
-    )
-
-    test_transforms = A.Compose([
-        A.Resize(size[0], size[1]),
-        A.Lambda(image=scale_to_01), 
-        ToTensorV2(), 
-    ], bbox_params=A.BboxParams(format='pascal_voc'))
-
-
-    ds_train_labeled = VOCDataset(root="VOC", split="trainval", years=("2007",), transform=weak_augmentations, download=download, details=None)
-    ds_train_unlabeled_weakaug = VOCDataset(root="VOC", split="trainval", years=("2012",), transform=weak_augmentations,  download=download, details=None)
-    ds_train_unlabeled_strongaug = VOCDataset(root="VOC", split="trainval", years=("2012",), transform=strong_augmentations, details=None)
-    ds_test = VOCDataset(root="VOC", split="test", years=("2007",), transform=test_transforms, details=None)
-
-    dt_train_labeled = DataLoader(ds_train_labeled, batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-    dt_train_unlabeled_weakaug =  DataLoader(ds_train_unlabeled_weakaug, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
-    dt_train_unlabeled_strongaug = DataLoader(ds_train_unlabeled_strongaug, batch_size=batch_size, shuffle=True,collate_fn=collate_fn)
-    dt_test = DataLoader(ds_test, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
-    return {
-        "burn_in":    dt_train_labeled,
-        "train_weak":  dt_train_unlabeled_weakaug,
-        "train_strong": dt_train_unlabeled_strongaug,
-        "test":        dt_test
-    }
+            transformed = self.transform(image=image, bboxes=target["boxes"], labels=target["labels"])
+            image, target["boxes"], target["labels"] = transformed["image"], transformed["bboxes"], transformed["labels"]
+            target["boxes"] = torch.tensor(target["boxes"], dtype=torch.float32)
+            target["labels"] = torch.tensor(target["labels"], dtype=torch.int64)
+        return image, target
