@@ -235,4 +235,4 @@ class VOCDataset(Dataset):
             image, target["boxes"], target["labels"] = transformed["image"], transformed["bboxes"], transformed["labels"]
             target["boxes"] = torch.tensor(target["boxes"], dtype=torch.float32)
             target["labels"] = torch.tensor(target["labels"], dtype=torch.int64)
-        return torch.tensor(image), target
+        return image, target

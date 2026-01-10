@@ -19,8 +19,8 @@ if __name__ == "__main__":
 
     device = torch.device(cfg.train.device)
 
-    checkpoint_dir = "./models/checkpoints"
-    os.makedirs(checkpoint_dir, exist_ok=True)
+    checkpoint_dir = "burn_in" + cfg.model.arch + "_checkpoints"
+    os.makedirs("burn_in" + cfg.model.arch + "_checkpoints", exist_ok=True)
 
     data = build_dataloaders(cfg)
 
@@ -30,7 +30,7 @@ if __name__ == "__main__":
     METRIC_UNSUP = ["loss_classifier", "loss_objectness"]
     VALIDATION_METRICS = ["mAP_50", "mAP_5095", "precision", "recall", "f1"]
 
-    pipeline_burn_in(cfg=cfg, data=data, device=device, metric_keys=METRIC_BURN_IN)
+    # pipeline_burn_in(cfg=cfg, data=data, device=device, metric_keys=METRIC_BURN_IN)
 
     last_ckpt = os.path.join(checkpoint_dir, f"checkpoint_epoch_{cfg.train.epochs}.pth")
     pipeline_semi_supervised(

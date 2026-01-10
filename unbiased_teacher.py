@@ -227,13 +227,9 @@ def pipeline_semi_supervised(
         score_thresh=cfg.metrics.score_thr,
         class_agnostic=cfg.metrics.class_agnostic)
 
-    plotter = TrainingCurveSemiSupervised(
-        metrics_supervised=metric_sup,
-        metrics_unsupervised=metric_unsup,
-        eval_metrics=eval_metrics)
+    plotter = TrainingCurveSemiSupervised(metrics_supervised=metric_sup, metrics_total=eval_metrics)
 
     best_val_loss = float("inf")
-
     for epoch in tqdm(range(cfg.train.epochs), desc="Semi-Supervised Epochs"):
         sup_hist, unsup_hist, train_loss = train_semi_supervised_one_epoch(
             teacher=teacher, student=student, optimizer=optimizer, scheduler=lr_scheduler,
