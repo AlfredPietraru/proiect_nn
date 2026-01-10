@@ -4,9 +4,9 @@ import os
 import torch
 import warnings
 
+from models.hyperparams import ExperimentConfig
 from burn_in import pipeline_burn_in
 from unbiased_teacher import pipeline_semi_supervised
-from models.hyperparams import ExperimentConfig
 from utils.oncuda import set_seed
 from data.dataloaders import build_dataloaders
 

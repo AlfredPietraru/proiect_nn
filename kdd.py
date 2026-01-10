@@ -12,7 +12,8 @@ from core import mean_history
 from utils.checkpoints import load_checkpoint, save_checkpoint
 from data.visualize.training_curves import TrainingCurveSupervised
 from models.scheduler import build_scheduler
-from models.hyperparams import ExperimentConfig, build_model
+from models.hyperparams import ExperimentConfig
+from model_builder import build_model
 from models.kl import WeakStrongKDD, CrossDatasetKDD, ClassProjector, FeatureKDD, BoxMatchKDD
 
 
