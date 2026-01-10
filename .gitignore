@@ -15,3 +15,6 @@ develop-eggs/
 dist/
 eggs/
 .eggs/
+datasets
+burn_infasterrcnn_checkpoints
+logs
