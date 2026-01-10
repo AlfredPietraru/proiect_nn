@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Sequence
+from typing import Tuple, Sequence, Optional
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -8,33 +8,24 @@ from matplotlib.figure import Figure
 from matplotlib.axes import Axes
 import seaborn as sns
 
+from data.visualize.visualize_common import normalize_rows, wrap_text, format_series, save_figure
 
-def save_and_show(
-    fig: Figure, 
-    show: bool, 
-    save_path: Optional[str], 
-    dpi: int
-) -> None:
-    if save_path is not None:
-        fig.savefig(save_path, dpi=dpi, bbox_inches="tight")
-    if show:
-        plt.show()
+sns.set_theme(style="whitegrid")
 
 
 def plot_heatmap(
-    ax: Axes, cm: np.ndarray,
-    class_names: Sequence[str],
-    title: str, fmt: str, cmap: str,
-    rotation_x: int,
-    vmin: Optional[float] = None, vmax: Optional[float] = None,
+    cm: np.ndarray, class_names: Sequence[str], ax: Axes, 
+    title: str, fmt: str, cmap: str, rotation_x: int,
+    vmin: Optional[float] = None, vmax: Optional[float] = None
 ) -> None:
+    """
+    Plot a confusion-matrix heatmap on a given axis (rows=true, cols=pred).
+    Heatmap for confusion matrix visualization.
+    """
     sns.heatmap(
-        cm, annot=True,
-        fmt=fmt, cmap=cmap, vmin=vmin, vmax=vmax,
+        cm, annot=True, fmt=fmt, cmap=cmap, vmin=vmin, vmax=vmax,
         cbar=True, square=True, linewidths=0.5, linecolor="white",
-        xticklabels=class_names, yticklabels=class_names,
-        ax=ax,
-    )
+        xticklabels=class_names, yticklabels=class_names, ax=ax)
     ax.set_title(title, fontsize=12)
     ax.set_xlabel("Predicted")
     ax.set_ylabel("True")
@@ -42,61 +33,18 @@ def plot_heatmap(
     ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
 
 
-def normalize_cm_rows(cm: np.ndarray) -> np.ndarray:
-    cm = np.asarray(cm, dtype=float)
-    rs = cm.sum(axis=1, keepdims=True)
-    rs[rs == 0] = 1.0
-    return cm / rs
-
-
-def format_acc_series(
-    acc: float | Sequence[float] | None, *,
-    decimals: int = 4, max_items: int | None = None,
-) -> str | None:
-    if acc is None:
-        return None
-
-    if isinstance(acc, (list, tuple, np.ndarray)):
-        arr = np.asarray(acc, dtype=float).ravel()
-        suffix = ""
-        if max_items is not None and len(arr) > max_items:
-            arr = arr[:max_items]
-            suffix = ", ..."
-
-        parts = [f"{v:.{decimals}f}" for v in arr.tolist()]
-        return ", ".join(parts) + suffix
-
-    if isinstance(acc, float):
-        return f"{acc:.{decimals}f}"
-    else:
-        return str(acc)
-
-
-def wrap_text(s: str, wrap: int) -> str:
-    if wrap is None or wrap <= 0 or len(s) <= wrap:
-        return s
-    chunks = [s[i : i + wrap] for i in range(0, len(s), wrap)]
-    return "\n".join(chunks)
-
-
-
 def plot_confusion_matrix(
-    cm: np.ndarray,
-    class_names: Sequence[str],
+    cm: np.ndarray, class_names: Sequence[str],
     title: str = "Confusion Matrix",
-    figsize: tuple = (8, 6),
-    show: bool = True,
-    save_path: Optional[str] = None,
-    dpi: int = 150, normalize: bool = False,
-    fmt: str = "d", rotation_x: int = 60, cmap: str = "Greens",
+    figsize: tuple = (8, 6), show: bool = True,
+    save_path: Optional[str] = None, normalize: bool = False,
+    fmt: str = "d", cmap: str = "Greens"
 ) -> tuple[Figure, Axes]:
+    """Plot a single confusion matrix as a heatmap (rows=true, cols=pred)."""
     cm = np.asarray(cm)
 
     if normalize:
-        cm = cm.astype(float)
-        row_sums = cm.sum(axis=1, keepdims=True)
-        row_sums[row_sums == 0] = 1.0
-        cm = cm / row_sums
+        cm = normalize_rows(cm)
         fmt = ".2f"
 
     n = len(class_names)
@@ -105,47 +53,50 @@ def plot_confusion_matrix(
     if n >= 18:
         figsize = (max(figsize[0], 12), max(figsize[1], 10))
 
-    fig, ax = plt.subplots(figsize=figsize)
+    rotation_x: int = 45
 
-    plot_heatmap(ax, cm, class_names, title, fmt, cmap, rotation_x)
+    fig, ax = plt.subplots(figsize=figsize)
+    plot_heatmap(cm, class_names, ax, title, fmt, cmap, rotation_x)
     ax.set_aspect("equal")
 
     ax.tick_params(axis="x", labelsize=8)
     ax.tick_params(axis="y", labelsize=8)
-    plt.setp(ax.get_xticklabels(), rotation=rotation_x, ha="right", rotation_mode="anchor")
-    plt.setp(ax.get_yticklabels(), rotation=0, ha="right")
 
     ax.set_xticks(np.arange(-0.5, cm.shape[1], 1), minor=True)
     ax.set_yticks(np.arange(-0.5, cm.shape[0], 1), minor=True)
     ax.grid(which="minor", color="white", linewidth=0.8)
     ax.tick_params(which="minor", bottom=False, left=False)
 
-    plt.tight_layout()
-    save_and_show(fig, show, save_path, dpi)
+    fig.tight_layout()
+    if save_path is not None:
+        save_figure(fig, save_path, dpi=300)
+    if show:
+        plt.show()
+
     return fig, ax
 
 
 def plot_confusion_matrices_side_by_side(
-    cm_left: np.ndarray, cm_right: np.ndarray,
-    class_names: Sequence[str], *,
+    cm_left: np.ndarray, cm_right: np.ndarray, class_names: Sequence[str],
+    left_acc: Optional[Sequence[float] | float], 
+    right_acc: Optional[Sequence[float] | float],
     left_title: str = "Model A", right_title: str = "Model B",
-    left_acc: float | Sequence[float] | None = None,
-    right_acc: float | Sequence[float] | None = None,
     left_cmap: str = "Blues", right_cmap: str = "Greens",
-    figsize=(16, 7), fmt: str = "d",
-    show: bool = True, save_path: str | None = None,
-    dpi: int = 150, shared_scale: bool = True,
-    acc_max_items: int | None = None
-) -> tuple[Figure, Sequence[Axes]]:
-    cm_left = np.asarray(cm_left)
-    cm_right = np.asarray(cm_right)
-
-    cm_left = normalize_cm_rows(cm_left)
-    cm_right = normalize_cm_rows(cm_right)
+    figsize: Tuple[int, int] = (16, 7), fmt: str = "d",
+    shared_scale: bool = True, acc_max_items: Optional[int] = None,
+    show: bool = True, save_path: Optional[str] = None
+) -> Tuple[Figure, Sequence[Axes]]:
+    """
+    Plot two confusion matrices side by side for comparison.
+    The comparasions are meant to be between two models (e.g., Model A vs. Model B)
+    or two conditions (e.g., before vs. after), etc.
+    """
+    cm_left = normalize_rows(np.asarray(cm_left))
+    cm_right = normalize_rows(np.asarray(cm_right))
     fmt = ".2f"
 
-    left_acc_str = format_acc_series(left_acc, decimals=4, max_items=acc_max_items)
-    right_acc_str = format_acc_series(right_acc, decimals=4, max_items=acc_max_items)
+    left_acc_str = format_series(left_acc, decimals=4, max_items=)
+    right_acc_str = format_series(right_acc, decimals=4, max_items=acc_max_items)
 
     if left_acc_str is not None:
         left_title += f"\n(Acc: [{left_acc_str}])"
@@ -162,18 +113,13 @@ def plot_confusion_matrices_side_by_side(
         vmin = float(min(np.nanmin(cm_left), np.nanmin(cm_right)))
         vmax = float(max(np.nanmax(cm_left), np.nanmax(cm_right)))
 
-    plot_heatmap(
-        axes[0], cm_left, class_names, left_title, fmt,
-        left_cmap, 45, vmin=vmin, vmax=vmax)
-    plot_heatmap(
-        axes[1], cm_right, class_names, right_title, fmt,
-        right_cmap, 45, vmin=vmin, vmax=vmax)
+    plot_heatmap(cm_left, class_names, axes[0], left_title, fmt, left_cmap, 45, vmin, vmax)
+    plot_heatmap(cm_right, class_names, axes[1], right_title, fmt, right_cmap, 45, vmin, vmax)
 
     for ax in axes:
         ax.set_aspect("equal")
         ax.tick_params(axis="x", labelsize=8)
         ax.tick_params(axis="y", labelsize=8)
-        plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
 
         ax.set_xticks(np.arange(-0.5, cm_left.shape[1], 1), minor=True)
         ax.set_yticks(np.arange(-0.5, cm_left.shape[0], 1), minor=True)
@@ -181,5 +127,9 @@ def plot_confusion_matrices_side_by_side(
         ax.tick_params(which="minor", bottom=False, left=False)
 
     plt.tight_layout()
-    save_and_show(fig, show, save_path, dpi)
+    if save_path is not None:
+        save_figure(fig, save_path, dpi=300)
+    if show:
+        plt.show()
+
     return fig, axes

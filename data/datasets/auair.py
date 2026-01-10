@@ -11,7 +11,7 @@ from torch.utils.data import Dataset
 
 from config import AUAIR_CLASSES, AUAIR_NAME_TO_ID
 from download import download_auair
-from utils.logger import Logger
+from ...utils.logger import Logger
 
 
 def load_auair_index(root: Path, split: str) -> Tuple[List[Path], Dict[str, List[dict]]]:
@@ -130,4 +130,4 @@ class AUAIRDataset(Dataset):
             t = self.transform(image=image, bboxes=boxes, labels=labels)
             image, boxes, labels = t["image"], t["bboxes"], t["labels"]
 
-        return image, make_target(boxes, labels)
+        return torch.tensor(image), make_target(boxes, labels)

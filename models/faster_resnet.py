@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Sequence, Tuple, Union
+from typing import cast, Dict, List, Optional, Sequence, Tuple, Union
 
 import torch
 import torch.nn as nn
-from torchvision.models.detection import (
-    FasterRCNN_ResNet50_FPN_Weights,
-    fasterrcnn_resnet50_fpn,
-)
+from torchvision.models.detection import FasterRCNN_ResNet50_FPN_Weights, fasterrcnn_resnet50_fpn
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 
 from .hyperparams import ExperimentConfig
@@ -25,7 +22,8 @@ class FasterRCNNResNet50FPN(nn.Module):
         super().__init__()
 
         base = fasterrcnn_resnet50_fpn(weights=weights, trainable_backbone_layers=trainable_backbone_layers)
-        in_features = base.roi_heads.box_predictor.cls_score.in_features
+        predictor = cast(FastRCNNPredictor, base.roi_heads.box_predictor)
+        in_features = predictor.cls_score.in_features
         base.roi_heads.box_predictor = FastRCNNPredictor(in_features, int(num_classes_with_bg))
 
         self.backbone = base.backbone
@@ -34,13 +32,10 @@ class FasterRCNNResNet50FPN(nn.Module):
         self.transform = base.transform
 
         s = int(img_size)
-        self.transform.min_size = (s,)
-        self.transform.max_size = s
         self.max_det = max_det
 
-    @property
-    def device(self) -> torch.device:
-        return next(self.backbone.model.parameters()).device
+        object.__setattr__(self.transform, "min_size", (s,))
+        object.__setattr__(self.transform, "max_size", s)
 
     def forward(
         self,
@@ -48,7 +43,6 @@ class FasterRCNNResNet50FPN(nn.Module):
         targets: Optional[List[Dict[str, torch.Tensor]]] = None,
     ) -> Tuple[List[Dict[str, torch.Tensor]], Dict[str, torch.Tensor]]:
         x_list = self.as_image_list(images)
-        x_list = [im.to(self.device, non_blocking=True) for im in x_list]
         original_sizes = [im.shape[-2:] for im in x_list]
 
         if targets is not None:
@@ -62,7 +56,14 @@ class FasterRCNNResNet50FPN(nn.Module):
 
         proposals, rpn_losses = self.rpn(images_t, feats, targets_t)
         detections, roi_losses = self.roi_heads(feats, proposals, images_t.image_sizes, targets_t)
-        outputs = self.transform.postprocess(detections, images_t.image_sizes, original_sizes)
+
+        image_sizes_arg = images_t.image_sizes
+        if isinstance(image_sizes_arg, torch.Tensor):
+            # images_t.image_sizes is a tensor of shape (N, 2)
+            image_sizes_arg = [tuple(map(int, s.tolist())) for s in image_sizes_arg]
+
+        postprocess_fn = getattr(self.transform, "postprocess")
+        outputs = postprocess_fn(detections, image_sizes_arg, original_sizes)
 
         loss_dict: Dict[str, torch.Tensor] = {}
         if targets is not None:
@@ -112,8 +113,8 @@ class FasterRCNNResNet50FPN(nn.Module):
         targets: List[Dict[str, torch.Tensor]],
     ) -> Dict[str, torch.Tensor]:
         x_list = self.as_image_list(images)
-        x_list = [im.to(self.device, non_blocking=True) for im in x_list]
-        targets = [{k: v.to(self.device, non_blocking=True) for k, v in t.items()} for t in targets]
+        x_list = [im for im in x_list]
+        targets = [t for t in targets]
 
         images_t, targets_t = self.transform(x_list, targets)
         feats = self.backbone(images_t.tensors)

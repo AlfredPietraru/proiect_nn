@@ -1,5 +1,14 @@
 # TODO – SUP → EMA → KDD Distillation Pipeline
 
+```sh
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --index-url https://download.pytorch.org/whl/cu126 torch torchvision
+sudo apt-get update && sudo apt-get install -y build-essential python3-dev
+pip3 install -U pycocotools dataset_tools
+pip install -r requirements.txt
+```
+
 This document specifies **all experiments**, their **exact execution order**, and **allowed interactions** for the SUP → EMA → KDD study, including cross-dataset transfer.  
 The goal is to isolate **learning mechanism effects** (EMA vs KDD) from **architecture** and **dataset** effects.
 

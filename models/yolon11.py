@@ -18,6 +18,7 @@ class YOLO11Detector(nn.Module):
         weights_path: str = "yolo11n.pt",
         max_det: int = 300,
         agnostic_nms: bool = True,
+        device: Optional[str] = None,
     ) -> None:
         super().__init__()
 
@@ -37,10 +38,7 @@ class YOLO11Detector(nn.Module):
         self.iou = iou
         self.max_det = max_det
         self.agnostic_nms = agnostic_nms
-
-    @property
-    def device(self) -> torch.device:
-        return next(self.yolo.model.parameters()).device
+        self.device = torch.device(device) if device is not None else torch.device("cpu")
 
     def to(self, *args, **kwargs):
         super().to(*args, **kwargs)
@@ -93,12 +91,19 @@ class YOLO11Detector(nn.Module):
 
         for i, r in enumerate(results):
             b = r.boxes
-            if b is None or b.xyxy is None or b.xyxy.numel() == 0:
+            if b is None:
                 continue
 
-            boxes = b.xyxy.to(device=self.device, dtype=torch.float32)
-            labels = b.cls.to(device=self.device, dtype=torch.long)
-            scores = b.conf.to(device=self.device, dtype=torch.float32)
+            xyxy = getattr(b, "xyxy", None)
+            if xyxy is None:
+                continue
+
+            boxes = torch.tensor(xyxy, device=self.device, dtype=torch.float32)
+            if boxes.numel() == 0:
+                continue
+
+            labels = torch.tensor(getattr(b, "cls", []), device=self.device, dtype=torch.long)
+            scores = torch.tensor(getattr(b, "conf", []), device=self.device, dtype=torch.float32)
 
             k = min(M, boxes.shape[0])
             if k == 0:

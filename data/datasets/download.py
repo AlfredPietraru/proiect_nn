@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable
+from typing import Callable, List
 import zipfile
 import subprocess
+import shutil
 
 import gdown
 import dataset_tools as dtools
 
-from data.datasets.config import VOC_KAGGLE_DATASETS
+from .config import VOC_KAGGLE_DATASETS
 from utils.logger import Logger
 
 
@@ -121,27 +122,138 @@ def download_dataset_supervisely(
         check_exists=exists, download_fn=download_fn, details=details)
 
 
+def voc_is_valid(v: Path) -> bool:
+    return (
+        v.is_dir()
+        and (v / "JPEGImages").is_dir()
+        and (v / "Annotations").is_dir()
+        and (v / "ImageSets" / "Main").is_dir()
+    )
+
+
+def voc_remove_segmentation(v: Path) -> None:
+    shutil.rmtree(v / "SegmentationClass", ignore_errors=True)
+    shutil.rmtree(v / "SegmentationObject", ignore_errors=True)
+
+
+def voc_cleanup_wrappers(devkit: Path, details: Logger) -> None:
+    for p in devkit.iterdir():
+        if not p.is_dir():
+            continue
+        if p.name.startswith("VOC20"):
+            continue
+        if (
+            p.name.startswith("VOCtrainval_")
+            or p.name.startswith("VOCtest_")
+            or p.name == "VOCdevkit"
+            or p.name == "PASCAL_VOC"
+        ):
+            log(details, f"VOC: removing wrapper -> {p}")
+            shutil.rmtree(p, ignore_errors=True)
+
+
+def voc_find_sources(devkit: Path, year: str) -> List[Path]:
+    sources: List[Path] = []
+
+    for p in devkit.rglob(f"VOCdevkit/VOC{year}"):
+        if voc_is_valid(p):
+            sources.append(p)
+
+    for p in devkit.glob(f"VOC{year}_*"):
+        if voc_is_valid(p):
+            sources.append(p)
+
+    for p in devkit.rglob(f"VOC{year}"):
+        if p == devkit / f"VOC{year}":
+            continue
+        if voc_is_valid(p):
+            sources.append(p)
+
+    seen = set()
+    uniq: List[Path] = []
+    for s in sources:
+        r = str(s.resolve())
+        if r not in seen:
+            uniq.append(s)
+            seen.add(r)
+    return uniq
+
+
+def voc_pick_trainval_and_test(sources: List[Path]) -> tuple[Path, Path | None]:
+    trainval = None
+    test = None
+
+    for s in sources:
+        s_str = str(s).lower()
+        if ("trainval" in s_str) or ("train_val" in s_str) or ("train-val" in s_str):
+            trainval = s
+        if ("/voctest_" in s_str) or ("_test" in s_str) or ("test" in s_str and "train" not in s_str):
+            test = s
+
+    base = trainval or sources[0]
+    return base, test
+
+
+def copy_missing_dir(src: Path, dst: Path) -> None:
+    if not src.exists():
+        return
+    dst.mkdir(parents=True, exist_ok=True)
+    for item in src.rglob("*"):
+        rel = item.relative_to(src)
+        out = dst / rel
+        if item.is_dir():
+            out.mkdir(parents=True, exist_ok=True)
+        else:
+            out.parent.mkdir(parents=True, exist_ok=True)
+            if not out.exists():
+                shutil.copy2(item, out)
+
+
+def voc_ensure_trainval_txt(voc_dir: Path) -> None:
+    main = voc_dir / "ImageSets" / "Main"
+    if not main.exists():
+        return
+
+    trainval = main / "trainval.txt"
+    train = main / "train.txt"
+    val = main / "val.txt"
+
+    if trainval.exists():
+        return
+
+    if train.exists() and val.exists():
+        ids: List[str] = []
+        for f in (train, val):
+            ids.extend([x.strip() for x in f.read_text(encoding="utf-8").splitlines() if x.strip()])
+        trainval.write_text("\n".join(ids) + "\n", encoding="utf-8")
+
+
 def download_voc(
     dst_dir: str | Path,
-    details: Logger,
-    force: bool = False,
+    details: Logger, force: bool = False,
     years: tuple[str, ...] = ("2007", "2012"),
 ) -> Path:
-    dst_dir = Path(dst_dir)
-    devkit = dst_dir / "VOCdevkit"
-    ensure_dir(devkit)
+    devkit = ensure_dir(dst_dir)
 
     def exists(_: Path) -> bool:
-        for y in years:
-            if not (devkit / f"VOC{y}" / "JPEGImages").exists():
-                return False
-        return True
+        return all((devkit / f"VOC{y}").exists() and voc_is_valid(devkit / f"VOC{y}") for y in years)
+
+    def merge_test_into_target(test_src: Path, target: Path) -> None:
+        copy_missing_dir(test_src / "JPEGImages", target / "JPEGImages")
+
+        test_txt = test_src / "ImageSets" / "Main" / "test.txt"
+        if test_txt.exists():
+            dst = target / "ImageSets" / "Main" / "test.txt"
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(test_txt, dst)
 
     def download_fn(_: Path) -> None:
         for y in years:
-            voc_dir = devkit / f"VOC{y}"
-            if (not force) and (voc_dir / "JPEGImages").exists():
-                log(details, f"VOC{y} exists, skipping download")
+            target = devkit / f"VOC{y}"
+
+            if target.exists() and voc_is_valid(target) and not force:
+                voc_remove_segmentation(target)
+                voc_ensure_trainval_txt(target)
                 continue
 
             slug = VOC_KAGGLE_DATASETS.get(str(y))
@@ -149,14 +261,41 @@ def download_voc(
                 raise RuntimeError(f"No Kaggle dataset configured for VOC{y}")
 
             log(details, f"Downloading VOC{y}: {slug}")
-            cmd = ["kaggle", "datasets", "download", "-d", slug, "-p", str(dst_dir), "--unzip"]
+            subprocess.run(["kaggle", "datasets", "download", "-d", slug, "-p", str(devkit), "--unzip"], check=True)
 
-            try:
-                subprocess.run(cmd, check=True)
-            except subprocess.CalledProcessError as e:
-                raise RuntimeError(f"Kaggle download failed: {slug} (code: {e.returncode})") from e
+            sources = voc_find_sources(devkit, y)
+            if not sources:
+                raise RuntimeError(f"VOC{y}: not found after unzip in {devkit}")
 
-            log(details, f"VOC{y} downloaded to: {voc_dir}")
+            base, test = voc_pick_trainval_and_test(sources)
+
+            if target.exists():
+                shutil.rmtree(target, ignore_errors=True)
+
+            log(details, f"VOC{y}: moving base -> {target}")
+            shutil.move(str(base), str(target))
+
+            voc_remove_segmentation(target)
+            voc_ensure_trainval_txt(target)
+
+            if test is not None and test.exists() and voc_is_valid(test):
+                log(details, f"VOC{y}: merging test -> {target}")
+                merge_test_into_target(test, target)
+                shutil.rmtree(test, ignore_errors=True)
+
+            for s in sources:
+                if s == base or s == test:
+                    continue
+                shutil.rmtree(s, ignore_errors=True)
+
+            voc_cleanup_wrappers(devkit, details)
+
+            if not voc_is_valid(target):
+                raise RuntimeError(f"VOC{y}: final structure invalid -> {target}")
+
+            log(details, f"VOC{y} ready -> {target}")
+
+        voc_cleanup_wrappers(devkit, details)
 
     return download_asset(
         name="dataset:VOC", dst=devkit, force=force,
@@ -211,7 +350,3 @@ def download_all_datasets(
     download_uavdt(uavdt_dir, details=details, force=force)
     download_visdrone(visdrone_dir, details=details, force=force)
     download_auair(auair_dir, details=details, force=force, quiet=quiet)
-
-
-if __name__ == "__main__":
-    download_all_datasets(force=False, quiet=False, details=Logger(app="DATASET_DOWNLOADER"))

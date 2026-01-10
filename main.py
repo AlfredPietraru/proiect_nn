@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import os
 import torch
+import warnings
 
 from burn_in import pipeline_burn_in
 from unbiased_teacher import pipeline_semi_supervised
 from models.hyperparams import ExperimentConfig
 from utils.oncuda import set_seed
 from data.dataloaders import build_dataloaders
+
+warnings.filterwarnings("ignore", category=UserWarning)
 
 
 if __name__ == "__main__":

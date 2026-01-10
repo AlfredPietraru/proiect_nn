@@ -3,17 +3,29 @@ from __future__ import annotations
 from typing import Tuple, Dict
 from torch.utils.data import DataLoader
 
-from augmentations import build_detection_transforms
+from data.augmentations import build_detection_transforms
 
-from datasets.auair import AUAIRDataset
-from datasets.uavdt import UAVDTDataset
-from datasets.visdrone import VisDroneDataset
-from datasets.voc import VOCDataset
+from data.datasets.auair import AUAIRDataset
+from data.datasets.uavdt import UAVDTDataset
+from data.datasets.visdrone import VisDroneDataset
+from data.datasets.voc import VOCDataset
 
-from unbiased import UnlabeledDataset
+from data.unbiased import UnlabeledDataset
 
 from models.hyperparams import ExperimentConfig
 from utils.logger import Logger
+
+
+def collate_labeled(batch):
+    images = [item[0] for item in batch]
+    targets = [item[1] for item in batch]
+    return images, targets
+
+
+def collate_unlabeled(batch):
+    weak_images = [b[0] for b in batch]
+    strong_images = [b[1] for b in batch]
+    return weak_images, strong_images
 
 
 def get_dataloaders_voc(
@@ -21,30 +33,21 @@ def get_dataloaders_voc(
     details: Logger,
     size: Tuple[int, int], batch_size: int,
     num_workers: int, pin_memory: bool,
-    download: bool = True
+    download: bool = True,
+    percentage : float = 1.0,
 ) -> Dict[str, DataLoader]:
-    def collate_labeled(batch):
-        images = [item[0] for item in batch]
-        targets = [item[1] for item in batch]
-        return images, targets
-
-    def collate_unlabeled(batch):
-        weak_images = [b[0] for b in batch]
-        strong_images = [b[1] for b in batch]
-        return weak_images, strong_images
-
     tfms = build_detection_transforms(size)
     weak_augmentations = tfms["weak"]
     strong_augmentations = tfms["strong"]
     test_transforms = tfms["test"]
 
-    # Labeled dataset (burn-in): VOC 2007 trainval
-    ds_train_labeled = VOCDataset(details, root, "trainval", ("2007",), weak_augmentations, download)
-    ds_test = VOCDataset(details, root, "test", ("2007",), test_transforms, download)
-
     # Unlabeled base dataset: VOC 2012 trainval (NO transform here) - for teacher SSL
-    ds_train_unlabeled = VOCDataset(details, root, "trainval", ("2012",), None, download)
+    ds_train_unlabeled = VOCDataset(details, root, "trainval", ("2012",), None, download, percentage)
     ds_train_unlabeled = UnlabeledDataset(ds_train_unlabeled, weak_augmentations, strong_augmentations)
+
+    # Labeled dataset (burn-in): VOC 2007 trainval
+    ds_train_labeled = VOCDataset(details, root, "trainval", ("2007",), weak_augmentations, download, percentage)
+    ds_test = VOCDataset(details, root, "test", ("2007",), test_transforms, download, percentage)
 
     loader_train_labeled = DataLoader(
         ds_train_labeled, batch_size, 
@@ -72,16 +75,6 @@ def get_dataloaders_uavdt(
     size: Tuple[int, int], batch_size: int,
     num_workers: int, pin_memory: bool
 ) -> Dict[str, DataLoader]:
-    def collate_labeled(batch):
-        images = [item[0] for item in batch]
-        targets = [item[1] for item in batch]
-        return images, targets
-
-    def collate_unlabeled(batch):
-        weak_images = [b[0] for b in batch]
-        strong_images = [b[1] for b in batch]
-        return weak_images, strong_images
-
     tfms = build_detection_transforms(size)
     weak_augmentations = tfms["weak"]
     strong_augmentations = tfms["strong"]
@@ -121,16 +114,6 @@ def get_dataloaders_auair(
     size: Tuple[int, int], batch_size: int,
     num_workers: int, pin_memory: bool
 ) -> Dict[str, DataLoader]:
-    def collate_labeled(batch):
-        images = [item[0] for item in batch]
-        targets = [item[1] for item in batch]
-        return images, targets
-
-    def collate_unlabeled(batch):
-        weak_images = [b[0] for b in batch]
-        strong_images = [b[1] for b in batch]
-        return weak_images, strong_images
-
     tfms = build_detection_transforms(size)
     weak_augmentations = tfms["weak"]
     strong_augmentations = tfms["strong"]
@@ -171,16 +154,6 @@ def get_dataloaders_visdrone(
     size: Tuple[int, int], batch_size: int,
     num_workers: int, pin_memory: bool
 ) -> Dict[str, DataLoader]:
-    def collate_labeled(batch):
-        images = [item[0] for item in batch]
-        targets = [item[1] for item in batch]
-        return images, targets
-
-    def collate_unlabeled(batch):
-        weak_images = [b[0] for b in batch]
-        strong_images = [b[1] for b in batch]
-        return weak_images, strong_images
-
     tfms = build_detection_transforms(size)
     weak_augmentations = tfms["weak"]
     strong_augmentations = tfms["strong"]
@@ -222,10 +195,11 @@ def build_dataloaders(cfg: ExperimentConfig) -> Dict[str, DataLoader]:
     if ds == "voc":
         return get_dataloaders_voc(
             details=Logger("Dataloaders"), root=cfg.data.root, 
-            download=cfg.data.download, # VOC can be downloaded automatically
+            download=cfg.data.download,
             batch_size=cfg.data.batch_size, size=size,
             num_workers=cfg.data.num_workers,
             pin_memory=cfg.data.pin_memory,
+            percentage=cfg.data.percentage,
         )
     if ds == "visdrone":
         return get_dataloaders_visdrone(

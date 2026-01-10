@@ -2,16 +2,26 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Literal, Optional
+import torch
+
+from models.faster_resnet import get_model_fasterrcnn
+from models.gradcam_resnet import get_model_resnet_gradcam
+from models.yolon11 import get_model_yolo11
 
 
 DatasetName = Literal["voc", "visdrone", "uavdt", "auair"]
-ArchName = Literal["fasterrcnn_resnet50", "resnet50_gradcampp", "yolo11n"]
+ArchName = Literal["fasterrcnn", "resnet50_gradcampp", "yolo11n"]
 OptName = Literal["sgd", "adamw", "adam"]
 SchedName = Literal["cosine", "multistep"]
 KDDKind = Literal["weakstrong", "cross_dataset", "feature", "box_match", "combo"]
 
 
 def dataset_num_classes(dataset: str) -> int:
+    """
+    Based on the dataset details found online.
+    Each dataset may have varying number of classes,
+    these are the actual numbers for each dataset.
+    """
     ds = dataset.lower()
     if ds == "voc":
         return 20
@@ -25,6 +35,11 @@ def dataset_num_classes(dataset: str) -> int:
 
 
 def dataset_max_objects(dataset: str) -> int:
+    """
+    Based on the dataset details found online.
+    Each dataset may have images with varying number of objects,
+    so these are approximate upper bounds.
+    """
     ds = dataset.lower()
     if ds == "voc":
         return 30
@@ -37,10 +52,29 @@ def dataset_max_objects(dataset: str) -> int:
     raise ValueError(f"Unknown dataset='{dataset}'")
 
 
+def build_model(cfg: ExperimentConfig) -> torch.nn.Module:
+    """
+    Models used in the experiments are only 3:
+    (make sure that the model.arch in config is one of these)
+    - Faster R-CNN with ResNet50-FPN backbone
+    - ResNet50 with GradCAM++
+    - YOLO-N11
+    """
+    arch = getattr(cfg.model, "arch")
+    if arch == "fasterrcnn":
+        return get_model_fasterrcnn(cfg=cfg)
+    if arch == "resnet50_gradcampp":
+        return get_model_resnet_gradcam(cfg=cfg)
+    if arch == "yolo11":
+        return get_model_yolo11(cfg=cfg)
+    raise ValueError(f"Unknown Model Architecture: {arch}")
+
+
 @dataclass
 class DataCfg:
     dataset: DatasetName = "voc"
     root: str = "datasets"
+    percentage = 0.05
 
     voc_dir: str = "VOC"
     visdrone_dir: str = "VisDrone"
@@ -51,7 +85,7 @@ class DataCfg:
     batch_size: int = 8
     num_workers: int = 4
     pin_memory: bool = True
-    download: bool = True
+    download: bool = False
 
     labeled_percent: float = 0.10
     unsup_batch_ratio: float = 1.0
@@ -67,7 +101,7 @@ class DataCfg:
 
 @dataclass
 class ModelCfg:
-    arch: ArchName = "fasterrcnn_resnet50"
+    arch: ArchName = "fasterrcnn"
     num_classes: int = 20
 
     pretrained: bool = True
@@ -108,7 +142,7 @@ class SchedCfg:
 @dataclass
 class TrainCfg:
     device: str = "cuda:0"
-    epochs: int = 80
+    epochs: int = 10
     use_amp: bool = True
     max_grad_norm: float | None = None
 

@@ -4,6 +4,7 @@ from typing import List, Dict, Tuple, Union, Optional
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torchvision.models import ResNet50_Weights
 
 from .resnet import ResNet50Backbone
@@ -31,11 +32,10 @@ class ResNet50GradCamPP(nn.Module):
         # - Strict hooks ensure that the target layer exists in the model architecture
         self.backbone = ResNet50Backbone(
             num_classes=num_classes, weights=weights,
-            freeze_backbone=freeze_backbone,
-            target=target)
+            freeze_backbone=freeze_backbone, target=target)
         self.campp = GradCAMPP(
             model=self.backbone,
-            target_layer=self.backbone.target_layer,
+            target_layer=self.backbone.target_layer, 
             strict_hooks=strict_hooks)
 
     def forward(
@@ -60,7 +60,8 @@ class ResNet50GradCamPP(nn.Module):
                     cls.append(int(y[0].item()) if y is not None and y.numel() > 0 else 0)
                 class_targets = torch.tensor(cls, device=x.device, dtype=torch.long)
 
-            loss_dict = self.loss(x, class_targets)
+            loss_dict = {}
+            loss_dict["loss"] = F.cross_entropy(logits, class_targets)
 
         class_idx = torch.argmax(logits, dim=1)
         prev = [p.requires_grad for p in self.backbone.parameters()]

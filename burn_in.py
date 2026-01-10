@@ -8,9 +8,8 @@ from tqdm import tqdm
 
 from utils.checkpoints import save_checkpoint
 from core import move_images_to_device, move_targets_to_device, mean_history
-from model_factory import build_model
 from models.scheduler import build_scheduler
-from models.hyperparams import ExperimentConfig
+from models.hyperparams import ExperimentConfig, build_model
 from data.visualize.training_curves import TrainingCurveSupervised
 
 
@@ -28,11 +27,10 @@ def train_burn_in_one_epoch(
     steps = 0
 
     loader = data["train_burn_in_strong"]
-
     for step_idx, (images, targets) in enumerate(tqdm(loader, desc="Burn-in train")):
         if step_idx >= max_iter:
             break
-
+        
         images = move_images_to_device(images, device)
         targets = move_targets_to_device(targets, device)
 

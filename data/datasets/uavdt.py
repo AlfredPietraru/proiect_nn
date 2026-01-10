@@ -8,8 +8,8 @@ import cv2
 import torch
 from torch.utils.data import Dataset
 
-from config import UAVDT_NAME_TO_ID, UAVDT_CLASSES
-from download import download_uavdt
+from data.datasets.config import UAVDT_NAME_TO_ID, UAVDT_CLASSES
+from data.datasets.download import download_uavdt
 from utils.logger import Logger
 
 
@@ -124,4 +124,4 @@ class UAVDTDataset(Dataset):
             t = self.transform(image=image, bboxes=boxes, labels=labels)
             image, boxes, labels = t["image"], t["bboxes"], t["labels"]
 
-        return image, make_target(boxes, labels)
+        return torch.tensor(image), make_target(boxes, labels)

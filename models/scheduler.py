@@ -56,7 +56,7 @@ def build_scheduler(
     steps_per_epoch: int, milestones: List[int],
     warmup_epochs: int = 3, warmup_bias_lr: float = 0.1,
     min_lr_ratio: float = 0.005, gamma: float = 0.1
-) -> torch.optim.lr_scheduler.LambdaLR:
+) -> torch.optim.lr_scheduler._LRScheduler:
     scheme = scheme.lower().strip()
 
     if total_epochs <= 0 or steps_per_epoch <= 0:

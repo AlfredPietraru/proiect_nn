@@ -8,7 +8,10 @@ import torch.nn as nn
 
 
 def unwrap_model(m: nn.Module) -> nn.Module:
-    return m.module if hasattr(m, "module") else m
+    module = getattr(m, "module", None)
+    if isinstance(module, nn.Module):
+        return module
+    return m
 
 
 class EMA:

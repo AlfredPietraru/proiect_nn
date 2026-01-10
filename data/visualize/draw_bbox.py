@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Mapping, Tuple, Any, cast
+from typing import List, Tuple, Optional, Sequence, Mapping, Any, cast
 
 import numpy as np
 import torch
@@ -8,64 +8,105 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle, Patch
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
+import seaborn as sns
 
 from data.datasets.config import ClassInfo
+from bbox.box_ops import BoxList
+from data.visualize.visualize_common import (
+    to_numpy_image, to_numpy_boxes_xyxy,
+    as_list, get_info, save_figure)
+
+sns.set_theme(style="whitegrid")
 
 
-def to_numpy_boxes(boxes: Any) -> np.ndarray:
-    if torch.is_tensor(boxes):
-        boxes = boxes.detach().cpu().numpy()
-    arr = np.asarray(boxes, dtype=np.float32)
-    if arr.size == 0:
-        return np.zeros((0, 4), dtype=np.float32)
-    if arr.ndim != 2 or arr.shape[1] != 4:
-        raise ValueError("Boxes must have shape (N, 4).")
-    return arr
-
-
-def as_list(x: Any) -> list[Any]:
-    if x is None:
-        return []
-    # Tensor -> list
-    if torch.is_tensor(x):
-        res = x.detach().cpu().tolist()
-        if not isinstance(res, list):
-            return [res]
-        return res
-    # Numpy array -> list
-    if isinstance(x, np.ndarray):
-        res = x.tolist()
-        if not isinstance(res, list):
-            return [res]
-        return res
-    return list(x)
-
-
-def get_info(classes: Mapping[int, ClassInfo], cid: int) -> ClassInfo:
-    info = classes.get(int(cid))
-    if info is None:
-        return ClassInfo(name=f"{int(cid)}", color="#FFFFFF")
-    return info
-
-
-def legend_handles(classes: Mapping[int, ClassInfo], used: set[int]) -> list[Patch]:
-    handles: list[Patch] = []
+def legend_handles(classes: Mapping[int, ClassInfo], used: set[int]) -> List[Patch]:
+    """Create legend handles for used class IDs."""
+    handles: List[Patch] = []
     for cid in sorted(used):
-        info = get_info(classes, cid)
+        info = get_info(classes, int(cid))
         handles.append(Patch(
             label=info.name,
-            facecolor=info.color, edgecolor=info.color,
+            facecolor=info.color,
+            edgecolor=info.color,
             alpha=0.8, linewidth=2.0))
     return handles
 
 
+def draw_boxes_on_ax(
+    ax: Axes, H: int, W: int,
+    boxes: Any,
+    labels: Optional[Any],
+    scores: Optional[Any],
+    classes: Optional[Mapping[int, ClassInfo]] = None,
+    conf_thr: float = 0.0,
+) -> set[int]:
+    """Draw (xyxy) boxes on an existing axis. Returns the set of used class IDs."""
+    boxes_np = to_numpy_boxes_xyxy(boxes)
+    labels_l = as_list(labels) if labels is not None else [0] * len(boxes_np)
+    scores_l = as_list(scores) if scores is not None else None
+
+    if len(labels_l) != len(boxes_np):
+        raise ValueError("Labels length must match number of boxes.")
+    if scores_l is not None and len(scores_l) != len(boxes_np):
+        raise ValueError("Scores length must match number of boxes.")
+
+    used: set[int] = set()
+    classes_map = classes or {}
+
+    for i, (box, lab) in enumerate(zip(boxes_np, labels_l)):
+        if scores_l is not None and float(scores_l[i]) < conf_thr:
+            continue
+
+        cid = int(lab)
+        info = get_info(classes_map, cid)
+
+        x1, y1, x2, y2 = [float(v) for v in box.tolist()]
+        x1 = max(0.0, min(W - 1.0, x1))
+        y1 = max(0.0, min(H - 1.0, y1))
+        x2 = max(0.0, min(W - 1.0, x2))
+        y2 = max(0.0, min(H - 1.0, y2))
+        if x2 <= x1 or y2 <= y1:
+            continue
+
+        w = max(1.0, x2 - x1)
+        h = max(1.0, y2 - y1)
+
+        ax.add_patch(Rectangle(
+            (x1, y1), w, h,
+            fill=False, linewidth=2.2,
+            edgecolor=info.color, alpha=0.9))
+
+        if labels is not None:
+            score_txt = f" {float(scores_l[i]):.2f}" if scores_l is not None else ""
+            txt = f"{info.name}{score_txt}"
+            ax.text(
+                x1 + 2, max(10, y1 + 2), txt,
+                fontsize=8, color="white", weight="bold",
+                bbox=dict(
+                    facecolor=info.color,
+                    edgecolor="none",
+                    boxstyle="round,pad=0.15",
+                    alpha=0.85))
+
+        used.add(cid)
+
+    return used
+
+
 def draw_bbox(
     image: np.ndarray,
-    boxes: Any, labels: Any, scores: Any = None, *,
-    classes: Mapping[int, ClassInfo],
-    conf_thr: float = 0.5, ax: Axes | None = None,
-    title: str = "BBoxes", figsize: tuple[int, int] = (12, 8),
+    boxes: BoxList,
+    labels: Sequence[int],
+    scores: Optional[Sequence[float]],
+    classes: Mapping[int, ClassInfo] = {},
+    conf_thr: float = 0.5,
+    ax: Optional[Axes] = None,
+    title: str = "BBoxes",
+    figsize: Tuple[int, int] = (12, 8),
+    show: bool = True,
+    save_path: Optional[str] = None,
 ) -> Tuple[Figure, Axes, set[int]]:
+    """Draw bounding boxes on a single image."""
     if ax is None:
         fig, ax = plt.subplots(1, 1, figsize=figsize)
     else:
@@ -78,97 +119,116 @@ def draw_bbox(
     ax.imshow(img)
     ax.axis("off")
 
-    H, W = image.shape[:2]
-    boxes_np = to_numpy_boxes(boxes)
-    labels_l = as_list(labels)
-    scores_l = as_list(scores) if scores is not None else None
-
-    if len(labels_l) != len(boxes_np):
-        raise ValueError("Labels length must match number of boxes.")
-    if scores_l is not None and len(scores_l) != len(boxes_np):
-        raise ValueError("Scores length must match number of boxes.")
-
-    used: set[int] = set()
-
-    for i, (box, lab) in enumerate(zip(boxes_np, labels_l)):
-        if scores_l is not None and float(scores_l[i]) < conf_thr:
-            continue
-
-        cid = int(lab)
-        info = get_info(classes, cid)
-
-        x1, y1, x2, y2 = [float(v) for v in box.tolist()]
-        w, h = x2 - x1, y2 - y1
-        if w <= 0 or h <= 0:
-            continue
-
-        x1 = max(0.0, min(W - 1.0, x1))
-        y1 = max(0.0, min(H - 1.0, y1))
-        w = max(1.0, min(W - x1, w))
-        h = max(1.0, min(H - y1, h))
-
-        rect = Rectangle((x1, y1), w, h, fill=False, linewidth=2.2, edgecolor=info.color, alpha=0.9)
-        ax.add_patch(rect)
-
-        score_txt = f" {float(scores_l[i]):.2f}" if scores_l is not None else ""
-        label_txt = f"{info.name}{score_txt}"
-        ax.text(
-            x1 + 2, max(2, y1 - 3),
-            label_txt, fontsize=9, color="white", weight="bold", va="top",
-            bbox=dict(facecolor=info.color, alpha=0.85, edgecolor=info.color, pad=2))
-
-        used.add(cid)
+    H, W = img.shape[:2]
+    used = draw_boxes_on_ax(
+        ax, H, W,
+        boxes, labels, scores,
+        classes=classes,
+        conf_thr=conf_thr)
 
     if used:
-        ax.legend(handles=legend_handles(classes, used), loc="upper right", fontsize=9, framealpha=0.9)
+        ax.legend(
+            handles=legend_handles(classes, used),
+            loc="upper right", fontsize=9, framealpha=0.9)
 
     ax.set_title(title, fontsize=14, fontweight="bold", pad=10)
+
     plt.tight_layout()
+    if save_path is not None:
+        save_figure(fig, save_path, dpi=300)
+    if show:
+        plt.show()
+
     return fig, ax, used
 
 
-def show_bbox(
-    images: list[np.ndarray],
-    boxes: Any, labels: Any, scores: Any = None, *,
-    classes: Mapping[int, ClassInfo],
-    titles: list[str] | None = None, cols: int = 4
-) -> tuple[Figure, np.ndarray]:
-    n = len(images)
-    rows = (n + cols - 1) // cols
-    fig, axes_grid = plt.subplots(rows, cols, figsize=(cols * 6, rows * 4))
+def set_status_border(ax: Axes, ok: bool | None) -> str:
+    if ok is None:
+        return "black"
+    color = "green" if bool(ok) else "red"
+    for s in ax.spines.values():
+        s.set_color(color)
+        s.set_linewidth(3)
+    return color
+
+
+def detect_grid(
+    images: torch.Tensor,
+    boxes: Sequence[BoxList],
+    labels: Optional[Sequence[Any]],
+    scores: Optional[Sequence[Any]],
+    classes: Optional[Mapping[int, ClassInfo]],
+    mean: Optional[Sequence[float]],
+    std: Optional[Sequence[float]],
+    pred_status: Optional[Sequence[bool]],
+    titles: Optional[Sequence[str]],
+    conf_thr: float = 0.0,
+    grid_title: str = "Detection Grid",
+    cols: int = 4,
+    figsize_per_cell: Tuple[float, float] = (3.3, 3.3),
+    show: bool = True,
+    save_path: Optional[str] = None,
+) -> Tuple[Figure, np.ndarray]:
+    B = int(images.size(0))
+    if B == 0:
+        raise ValueError("Empty batch: images tensor has zero length.")
+    if len(boxes) != B:
+        raise ValueError(f"Boxes length {len(boxes)} does not match batch size {B}.")
+
+    labels_seq = labels if labels is not None else [None] * B
+    scores_seq = scores if scores is not None else [None] * B
+    status_seq = pred_status if pred_status is not None else [None] * B
+    titles_seq = titles if titles is not None else [f"Image {i}" for i in range(B)]
+
+    ncols = max(1, min(int(cols), B))
+    nrows = (B + ncols - 1) // ncols
+
+    fig_w = ncols * float(figsize_per_cell[0])
+    fig_h = nrows * float(figsize_per_cell[1])
+    fig, axes_grid = plt.subplots(nrows, ncols, figsize=(fig_w, fig_h))
     axes = np.atleast_1d(axes_grid).ravel()
 
-    boxes_list = list(boxes)
-    labels_list = list(labels)
-    scores_list = list(scores) if scores is not None else None
+    for i, ax in enumerate(axes):
+        ax.axis("off")
+        if i >= B:
+            continue
 
-    last = -1
-    used_all: set[int] = set()
+        img = to_numpy_image(images[i], mean, std)
+        H, W = img.shape[:2]
+        ax.imshow(img)
 
-    for i in range(min(n, len(axes))):
-        sc = scores_list[i] if scores_list is not None else None
-        title = titles[i] if titles is not None else f"Image {i + 1}"
+        ok = status_seq[i] if i < len(status_seq) else None
+        title_color = set_status_border(ax, ok if ok is None else bool(ok))
 
-        _, _, used = draw_bbox(
-            image=images[i], boxes=boxes_list[i], labels=labels_list[i],
-            scores=sc, classes=classes, ax=axes[i], title=title, figsize=(6, 4))
-        used_all.update(used)
-        last = i
+        title = titles_seq[i] if i < len(titles_seq) else f"Image {i}"
+        ax.set_title(title, fontsize=10, color=title_color)
 
-    for j in range(last + 1, len(axes)):
+        used = draw_boxes_on_ax(
+            ax, H, W,
+            boxes[i],
+            labels_seq[i],
+            scores_seq[i],
+            classes=classes,
+            conf_thr=conf_thr,
+        )
+
+        if used and classes is not None:
+            ax.legend(
+                handles=legend_handles(classes, used),
+                loc="upper right",
+                fontsize=7,
+                framealpha=0.9,
+            )
+
+    for j in range(B, len(axes)):
         axes[j].axis("off")
 
-    fig.suptitle(f"BBoxes ({n} image(s))", fontsize=18, fontweight="bold", y=0.98)
+    fig.suptitle(grid_title, fontsize=16)
+
     plt.tight_layout()
+    if save_path is not None:
+        save_figure(fig, save_path, dpi=300)
+    if show:
+        plt.show()
+
     return fig, axes
-
-
-def save_bbox_visualization(
-    image: np.ndarray,
-    boxes: Any, labels: Any, scores: Any = None, *,
-    classes: Mapping[int, ClassInfo],
-    out_pth: str = "bboxes.png", dpi: int = 300, **kwargs
-) -> None:
-    fig, _, _ = draw_bbox(image, boxes, labels, scores=scores, classes=classes, **kwargs)
-    fig.savefig(out_pth, dpi=dpi, bbox_inches="tight", pad_inches=0.1)
-    plt.close(fig)

@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 import os
-from typing import Dict, List
+from typing import Dict, List, Optional
 
-from loguru import logger
+import matplotlib
 import matplotlib.pyplot as plt
+import seaborn as sns
+
+from data.visualize.visualize_common import save_figure
+
+matplotlib.use('Agg')
+sns.set_theme(style="whitegrid")
 
 
 class TrainingCurveSupervised:
@@ -12,143 +18,107 @@ class TrainingCurveSupervised:
         self.metrics = metrics
         self.history = {k: [] for k in metrics}
 
-    def add(self, epoch_history: Dict[str, float]) -> None:
+    def update(self, epoch_metrics: Dict[str, float]) -> None:
         for k in self.metrics:
-            self.history[k].append(float(epoch_history.get(k, 0.0)))
+            self.history[k].append(float(epoch_metrics.get(k, 0.0)))
 
-    def plot_total(
-        self,
-        epoch_history: Dict[str, float],
-        save_dir: str,
-        filename: str = "train_loss_sup.png",
-        show: bool = False,
-    ) -> None:
-        self.add(epoch_history)
-
-        if "total" not in self.history:
-            raise KeyError("Expects metric 'total' in metrics list.")
-
+    def plot_total(self, save_dir: str, show: bool = False, save_path: Optional[str] = None) -> None:
         os.makedirs(save_dir, exist_ok=True)
-        out_path = os.path.join(save_dir, filename)
+        if "total" not in self.history:
+            return
 
-        epochs = range(1, len(self.history["total"]) + 1)
+        epochs = list(range(1, len(self.history["total"]) + 1))
+        fig, ax = plt.subplots(figsize=(8, 5))
+        sns.lineplot(x=epochs, y=self.history["total"], ax=ax, label="Train total", linewidth=2)
 
-        plt.figure(figsize=(8, 5))
-        plt.plot(list(epochs), self.history["total"], label="Train total", linewidth=2)
+        ax.set_title("Supervised Training Loss")
+        ax.set_xlabel("Epoch")
+        ax.set_ylabel("Loss")
+        ax.legend()
 
-        plt.title("Supervised Training Loss")
-        plt.xlabel("Epoch")
-        plt.ylabel("Loss")
-        plt.legend()
-        plt.tight_layout()
-
-        plt.savefig(out_path, dpi=300, bbox_inches="tight")
-        logger.info(f"Plot saved to: {out_path}")
-
+        fig.tight_layout()
+        if save_path is not None:
+            save_figure(fig, save_path)
         if show:
             plt.show()
-        plt.close()
 
 
-class TrainingCurvesSemiSupervised:
-    def __init__(
-        self,
-        metrics_supervised: List[str],
-        metrics_unsupervised: List[str],
-        eval_metrics: List[str],
-    ) -> None:
+class TrainingCurveSemiSupervised:
+    def __init__(self, metrics_supervised: List[str], metrics_total: List[str]) -> None:
         self.metrics_supervised = metrics_supervised
-        self.metrics_unsupervised = metrics_unsupervised
-        self.eval_metrics = eval_metrics
+        self.metrics_total = metrics_total
 
         self.history_sup = {k: [] for k in metrics_supervised}
-        self.history_unsup = {k: [] for k in metrics_unsupervised}
+        self.history_total = {k: [] for k in metrics_total}
 
         self.history_total_loss: List[float] = []
-        self.history_eval_loss: List[float] = []
 
-        self.history_eval = {k: [] for k in eval_metrics}
-
-    def add(
-        self,
-        sup: Dict[str, float],
-        unsup: Dict[str, float],
-        total_loss: float,
-        eval_hist: Dict[str, float],
-        val_loss: float,
-    ) -> None:
+    def update_supervised(self, metrics: Dict[str, float]) -> None:
         for k in self.metrics_supervised:
-            self.history_sup[k].append(float(sup.get(k, 0.0)))
+            self.history_sup[k].append(float(metrics.get(k, 0.0)))
 
-        for k in self.metrics_unsupervised:
-            self.history_unsup[k].append(float(unsup.get(k, 0.0)))
+    def update_total(self, metrics: Dict[str, float]) -> None:
+        for k in self.metrics_total:
+            self.history_total[k].append(float(metrics.get(k, 0.0)))
 
+    def update_total_loss(self, total_loss: float) -> None:
         self.history_total_loss.append(float(total_loss))
-        self.history_eval_loss.append(float(val_loss))
-
-        for k in self.eval_metrics:
-            self.history_eval[k].append(float(eval_hist.get(k, 0.0)))
 
     def plot_losses(
-        self,
-        save_dir: str,
-        filename: str = "train_loss_semi.png",
-        show: bool = False, plot_components: bool = False,
+        self, plot_components: bool,
+        save_dir: str, show: bool = False, save_path: Optional[str] = None
     ) -> None:
         os.makedirs(save_dir, exist_ok=True)
-        out_path = os.path.join(save_dir, filename)
+        fig, ax = plt.subplots(figsize=(10, 6))
 
-        epochs = range(1, len(self.history_total_loss) + 1)
-
-        plt.figure(figsize=(10, 6))
+        epochs = list(range(1, len(self.history_total_loss) + 1))
+        sns.lineplot(x=epochs, y=self.history_total_loss, ax=ax, label="Total loss", linewidth=2)
 
         if plot_components:
             for k in self.metrics_supervised:
-                plt.plot(list(epochs), self.history_sup[k], label=f"{k} (sup)", linewidth=2)
+                if self.history_sup.get(k):
+                    sns.lineplot(
+                        x=epochs[:len(self.history_sup[k])],
+                        y=self.history_sup[k], 
+                        ax=ax, label=f"{k} (sup)", linewidth=2)
+            for k in self.metrics_total:
+                if self.history_total.get(k):
+                    sns.lineplot(
+                        x=epochs[:len(self.history_total[k])], 
+                        y=self.history_total[k], ax=ax, label=f"{k} (total)", linewidth=2)
 
-            for k in self.metrics_unsupervised:
-                plt.plot(list(epochs), self.history_unsup[k], label=f"{k} (unsup)", linewidth=2)
+        ax.set_title("Training Loss Curves")
+        ax.set_xlabel("Epoch")
+        ax.set_ylabel("Loss")
+        ax.legend()
 
-        plt.plot(list(epochs), self.history_total_loss, label="Train total", linewidth=2)
-        plt.plot(list(epochs), self.history_eval_loss, label="Val loss", linewidth=2)
-
-        plt.title("Semi-Supervised Training Loss")
-        plt.xlabel("Epoch")
-        plt.ylabel("Loss")
-        plt.legend()
-        plt.tight_layout()
-
-        plt.savefig(out_path, dpi=300, bbox_inches="tight")
-        logger.info(f"Plot saved to: {out_path}")
-
+        fig.tight_layout()
+        if save_path is not None:
+            save_figure(fig, save_path)
         if show:
             plt.show()
-        plt.close()
 
     def plot_eval_metrics(
-        self,
-        save_dir: str,
-        filename: str = "eval_metrics_semi.png",
-        show: bool = False,
+        self, metrics: Dict[str, List[float]], 
+        save_dir: str, show: bool = False, save_path: Optional[str] = None
     ) -> None:
         os.makedirs(save_dir, exist_ok=True)
-        out_path = os.path.join(save_dir, filename)
+        fig, ax = plt.subplots(figsize=(10, 6))
 
-        epochs = range(1, len(self.history_eval_loss) + 1)
+        for k, vals in metrics.items():
+            if not vals:
+                continue
+            epochs = list(range(1, len(vals) + 1))
+            sns.lineplot(x=epochs, y=vals, ax=ax, label=k, linewidth=2)
 
-        plt.figure(figsize=(10, 6))
-        for k in self.eval_metrics:
-            plt.plot(list(epochs), self.history_eval[k], label=k, linewidth=2)
+        ax.set_title("Evaluation Metrics")
+        ax.set_xlabel("Epoch")
+        ax.set_ylabel("Metric")
+        ax.legend()
 
-        plt.title("Validation Metrics")
-        plt.xlabel("Epoch")
-        plt.ylabel("Metric")
-        plt.legend()
-        plt.tight_layout()
-
-        plt.savefig(out_path, dpi=300, bbox_inches="tight")
-        logger.info(f"Plot saved to: {out_path}")
-
+        fig.tight_layout()
+        if save_path is not None:
+            save_figure(fig, save_path)
         if show:
             plt.show()
-        plt.close()
+        plt.close(fig)

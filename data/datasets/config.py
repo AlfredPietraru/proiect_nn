@@ -9,7 +9,6 @@ class ClassInfo:
     name: str
     color: str
 
-#! 0 - reserved for background / no class
 
 # ----------------------------
 # VOC (Pascal VOC 20 classes)
