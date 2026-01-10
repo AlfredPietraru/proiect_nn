@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Literal, Optional
-
+import torch
 
 DatasetName = Literal["voc", "visdrone", "uavdt", "auair"]
 ArchName = Literal["fasterrcnn", "resnet50_gradcampp", "yolo11n"]
@@ -41,7 +41,7 @@ def dataset_max_objects(dataset: str) -> int:
 class DataCfg:
     dataset: DatasetName = "voc"
     root: str = "datasets"
-    percentage = 0.05
+    percentage = 0.025
 
     voc_dir: str = "VOC"
     visdrone_dir: str = "VisDrone"
@@ -72,7 +72,7 @@ class ModelCfg:
     num_classes: int = 20
 
     pretrained: bool = True
-    freeze_backbone: bool = False
+    freeze_backbone: bool = True
 
     yolo_weights: str = "yolo11n.pt"
     yolo_iou: float = 0.7
@@ -87,7 +87,7 @@ class ModelCfg:
 @dataclass
 class OptimCfg:
     opt: OptName = "sgd"
-    lr: float = 0.01
+    lr: float = 1e-3
     weight_decay: float = 1e-4
     momentum: float = 0.9
     nesterov: bool = True
@@ -108,8 +108,8 @@ class SchedCfg:
 
 @dataclass
 class TrainCfg:
-    device: str = "cuda:0"
-    epochs: int = 10
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    epochs: int = 3
     use_amp: bool = True
     max_grad_norm: float | None = None
 
@@ -190,13 +190,9 @@ class ExperimentConfig:
     metrics: MetricsCfg = field(default_factory=MetricsCfg)
 
     def __post_init__(self) -> None:
-        self.sync()
-
-    def sync(self) -> None:
         self.data.sync()
         self.model.sync(self.data)
         self.metrics.sync(self.data)
-        self.train.device = str(self.train.device)
 
     def num_classes_with_bg(self) -> int:
         return int(self.data.num_classes) + 1

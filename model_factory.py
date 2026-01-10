@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from models.faster_resnet import get_model_fasterrcnn
+from models.faster_resnet import FasterRCNNResNet50FPN, FasterRCNNResNet50FPNReloaded
 from models.gradcam_resnet import get_model_resnet_gradcam
 from models.yolon11 import get_model_yolo11
 from models.hyperparams import ExperimentConfig
@@ -12,7 +12,8 @@ def build_model(cfg: ExperimentConfig) -> torch.nn.Module:
     arch = getattr(cfg.model, "arch")
 
     if arch == "fasterrcnn":
-        return get_model_fasterrcnn(cfg=cfg)
+        # return FasterRCNNResNet50FPN(cfg=cfg)
+        return FasterRCNNResNet50FPNReloaded(cfg=cfg)
     if arch == "resnet50_gradcampp":
         return get_model_resnet_gradcam(cfg=cfg)
     if arch == "yolo11":

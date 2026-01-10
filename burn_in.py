@@ -37,9 +37,6 @@ def train_burn_in_one_epoch(
 
         optimizer.zero_grad(set_to_none=True)
         _, loss_dict = model(images, targets)
-        if not loss_dict:
-            continue
-
         loss = sum(loss_dict.values())
         loss.backward()
         optimizer.step()
@@ -57,10 +54,10 @@ def train_burn_in_one_epoch(
 def pipeline_burn_in(
     cfg: ExperimentConfig,
     data: Dict[str, DataLoader],
-    device: torch.device,
     metric_keys: List[str],
 ) -> None:
-    model = build_model(cfg=cfg).to(device) 
+    os.makedirs("burn_in" + cfg.model.arch + "_checkpoints", exist_ok=True)
+    model = build_model(cfg=cfg).to(cfg.train.device) 
 
     optimizer = torch.optim.SGD(
         model.parameters(), lr=cfg.optim.lr, momentum=cfg.optim.momentum,
@@ -77,12 +74,11 @@ def pipeline_burn_in(
 
     for epoch in tqdm(range(cfg.train.epochs), desc="Burn-in epochs"):
         train_hist = train_burn_in_one_epoch(
-            model=model, optimizer=optimizer, scheduler=lr_scheduler, data=data, device=device,
+            model=model, optimizer=optimizer, scheduler=lr_scheduler, data=data, device=cfg.train.device,
             max_iter=(cfg.train.log_interval * 999999), metric_keys=metric_keys)
 
         plotter.plot_total(epoch_history=train_hist, save_dir="graphs")
 
         if (epoch + 1) % cfg.train.ckpt_interval == 0 or (epoch + 1) == cfg.train.epochs:
-            os.makedirs("burn_in" + cfg.model.arch + "_checkpoints", exist_ok=True)
             ckpt_path = os.path.join("burn_in" + cfg.model.arch + "_checkpoints", f"checkpoint_epoch_{epoch + 1}.pth")
             save_checkpoint(model, optimizer, epoch + 1, ckpt_path)
