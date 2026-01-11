@@ -28,7 +28,7 @@ def tsne_embeddings(
             f"perplexity={perplexity}).")
     tsne = TSNE(
         n_components=2, perplexity=perplexity, learning_rate="auto",
-        init="pca", random_state=seed, n_iter=n_iter, verbose=1)
+        init="pca", random_state=seed, max_iter=n_iter, n_jobs=-1)
     Z = tsne.fit_transform(X.astype(np.float32, copy=False))
     return Z
 
@@ -43,8 +43,8 @@ def plot_tsne_labels(
 ) -> Tuple[Figure, Axes]:
     sup_train_2d = np.asarray(sup_train_2d)
     sup_test_2d = np.asarray(sup_test_2d)
-    sup_train_labels = np.asarray(sup_train_labels)
-    sup_test_labels = np.asarray(sup_test_labels)
+    sup_train_labels = np.asarray(sup_train_labels).astype(np.int64, copy=False)
+    sup_test_labels = np.asarray(sup_test_labels).astype(np.int64, copy=False)
 
     if (sup_train_2d.ndim != 2 or sup_train_2d.shape[1] != 2 or
         sup_test_2d.ndim != 2 or sup_test_2d.shape[1] != 2 or
@@ -93,9 +93,13 @@ def plot_tsne_labels(
     sm = mpl_cm.ScalarMappable(cmap=cmap, norm=norm)
     sm.set_array([])
 
-    cbar = fig.colorbar(sm, ax=ax, fraction=0.046, pad=0.04)
-    cbar.set_label("Class id")
-    cbar.set_ticks([float(i) for i in range(num_classes)])
+    if num_classes > 1:
+        cbar = fig.colorbar(sm, ax=ax, fraction=0.046, pad=0.04)
+        cbar.set_label("Class id")
+        cbar.set_ticks([float(i) for i in range(num_classes)])
+    else:
+        ax.text(0.95, 0.0, f"Class id: {class_names[0] if class_names else '0'}", 
+                transform=ax.transAxes, ha="right", va="bottom", fontsize=9)
 
     fig.tight_layout()
     if save_path is not None:

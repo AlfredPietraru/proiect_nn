@@ -1,163 +1,130 @@
 from __future__ import annotations
 
-from typing import Tuple, Sequence, Optional
+from typing import Optional, Sequence, Tuple
 
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
-from matplotlib.axes import Axes
-import seaborn as sns
 
-from data.visualize.visualize_common import normalize_rows, wrap_text, format_series, save_figure
-
-sns.set_theme(style="whitegrid")
+from data.visualize.visualize_common import save_figure
+from data.datasets.config import VOC_CLASSES, UAVDT_CLASSES, VISDRONE_CLASSES, AUAIR_CLASSES
 
 
-def plot_heatmap(
-    ax: Axes, cm: np.ndarray, class_names: Sequence[str],
-    title: str, fmt: str, cmap: str, rotation_x: int, 
-    vmin: Optional[float] = None, vmax: Optional[float] = None
-) -> None:
-    """Plot a confusion-matrix heatmap on a given axis (rows=true, cols=pred)."""
-    sns.heatmap(
-        cm, annot=True,
-        fmt=fmt, cmap=cmap, vmin=vmin, vmax=vmax,
-        cbar=True, square=True, linewidths=0.5, linecolor="white",
-        xticklabels=class_names, yticklabels=class_names, ax=ax)
-
-    ax.set_title(title, fontsize=12)
-    ax.set_xlabel("Predicted")
-    ax.set_ylabel("True")
-    ax.set_xticklabels(ax.get_xticklabels(), rotation=rotation_x, ha="right")
-    ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
+def is_string_labels(y: np.ndarray) -> bool:
+    """Labels must be strings (unicode, bytes, or object)."""
+    return np.asarray(y).dtype.kind in {"U", "S", "O"}
 
 
-def format_acc_series(
-    acc: Optional[float | Sequence[float]],
-    decimals: int = 4, max_items: Optional[int] = None
-) -> str | None:
-    """Format an accuracy value (float) or a list of values into a short string."""
-    if acc is None:
-        return None
-
-    if isinstance(acc, (list, tuple, np.ndarray)):
-        arr = np.asarray(acc, dtype=float).ravel()
-        suffix = ""
-        if max_items is not None and len(arr) > max_items:
-            arr = arr[:max_items]
-            suffix = ", ..."
-        parts = [f"{v:.{decimals}f}" for v in arr.tolist()]
-        return ", ".join(parts) + suffix
-
-    if isinstance(acc, float):
-        return f"{acc:.{decimals}f}"
-    return str(acc)
+def map_string_labels_to_ids(
+    y_train: np.ndarray, y_val: np.ndarray,
+    class_names: Sequence[str]
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Map string labels to integer IDs based on provided class names."""
+    name_to_id = {str(name): i for i, name in enumerate(class_names)}
+    try:
+        y_train_ids = np.asarray([name_to_id[str(v)] for v in y_train], dtype=np.int64)
+        y_val_ids = np.asarray([name_to_id[str(v)] for v in y_val], dtype=np.int64)
+    except KeyError as e:
+        raise ValueError(f"Label not found in class names: {e}") from e
+    return y_train_ids, y_val_ids
 
 
-def plot_confusion_matrix(
-    cm: np.ndarray, class_names: Sequence[str], 
-    normalize: bool = False, cmap: str = "Greens",
-    title: str = "Confusion Matrix", figsize: Tuple[int, int] = (8, 6),
+def sparse_xticks(num_classes: int, max_xticks: int) -> np.ndarray:
+    """Generate sparse x-tick indices for plotting."""
+    if num_classes <= max_xticks:
+        return np.arange(num_classes)
+    step = int(np.ceil(num_classes / max_xticks))
+    return np.arange(0, num_classes, step)
+
+
+def build_tick_labels(
+    num_classes: int,
+    class_names: Optional[Sequence[str]] = None
+) -> Sequence[str]:
+    """
+    Build x-tick labels for plotting.
+
+    If no. classes exceeds the provided class names, fill remaining with
+    stringified indices.
+    """
+    if class_names is None:
+        return [str(i) for i in range(num_classes)]
+    tick_labels = [str(n) for n in class_names]
+    if len(tick_labels) < num_classes:
+        tick_labels += [str(i) for i in range(len(tick_labels), num_classes)]
+    return tick_labels[:num_classes]
+
+
+def plot_class_distribution(
+    y_train: np.ndarray, y_val: np.ndarray,
+    class_names: Optional[Sequence[str]] = None,
+    figsize: Tuple[int, int] = (18, 5),
+    max_xticks: int = 20,
+    rotate: int = 60,
+    use_config_colors: bool = True,
     show: bool = True, save_path: Optional[str] = None
-) -> tuple[Figure, Axes]:
-    """Plot a single confusion matrix as a heatmap (rows=true, cols=pred)."""
-    cm = np.asarray(cm)
-
-    if normalize:
-        cm = normalize_rows(cm)
-        fmt = ".2f"
-
-    n = len(class_names)
-    if n >= 12:
-        figsize = (max(figsize[0], 10), max(figsize[1], 8))
-    if n >= 18:
-        figsize = (max(figsize[0], 12), max(figsize[1], 10))
-
-    fig, ax = plt.subplots(figsize=figsize)
-
-    fmt: str = "d"
-    rotation_x: int = 60
-    plot_heatmap(ax, cm, class_names, title, fmt, cmap, rotation_x)
-    ax.set_aspect("equal")
-
-    ax.tick_params(axis="x", labelsize=8)
-    ax.tick_params(axis="y", labelsize=8)
-    plt.setp(ax.get_xticklabels(), rotation=rotation_x, ha="right", rotation_mode="anchor")
-    plt.setp(ax.get_yticklabels(), rotation=0, ha="right")
-
-    ax.set_xticks(np.arange(-0.5, cm.shape[1], 1), minor=True)
-    ax.set_yticks(np.arange(-0.5, cm.shape[0], 1), minor=True)
-    ax.grid(which="minor", color="white", linewidth=0.8)
-    ax.tick_params(which="minor", bottom=False, left=False)
-
-    plt.tight_layout()
-    if save_path is not None:
-        save_figure(fig, save_path)
-    if show:
-        plt.show()
-
-    return fig, ax
-
-
-def plot_confusion_matrices_side_by_side(
-    cm_left: np.ndarray, cm_right: np.ndarray, class_names: Sequence[str],
-    left_title: str = "Model A", right_title: str = "Model B",
-    left_acc: Optional[float | Sequence[float]] = None,
-    right_acc: Optional[float | Sequence[float]] = None,
-    left_cmap: str = "Blues", right_cmap: str = "Greens",
-    figsize: Tuple[int, int] = (16, 7), 
-    fmt: str = "d", shared_scale: bool = True, show: bool = True,
-    acc_max_items: Optional[int] = None, save_path: Optional[str] = None
-) -> tuple[Figure, Sequence[Axes]]:
+) -> Tuple[Figure, np.ndarray]:
     """
-    Plot two confusion matrices side-by-side for comparison.
-    Matrices are row-normalized to show per-true-class prediction probabilities.
+    Plot class distribution for training and validation/test sets.
+
+    Produces two side-by-side bar charts:
+    - left: train label counts
+    - right: validation/test label counts
+
+    If labels are strings/objects, class_names is required to map names -> IDs.
+
+    If use_config_colors=True and class_names provided, bars use colors from config.py
+    (VOC/UAVDT/VisDrone/AU-AIR ClassInfo.color).
     """
-    cm_left = np.asarray(cm_left)
-    cm_right = np.asarray(cm_right)
+    y_train = np.asarray(y_train)
+    y_val = np.asarray(y_val)
 
-    cm_left = normalize_rows(cm_left)
-    cm_right = normalize_rows(cm_right)
-    fmt = ".2f"
+    if is_string_labels(y_train) or is_string_labels(y_val):
+        if class_names is None:
+            raise ValueError("String labels detected, but must be provided class names.")
+        y_train, y_val = map_string_labels_to_ids(y_train, y_val, class_names)
+    else:
+        y_train = y_train.astype(np.int64, copy=False)
+        y_val = y_val.astype(np.int64, copy=False)
 
-    left_acc_str = format_series(left_acc, decimals=4, max_items=acc_max_items)
-    right_acc_str = format_series(right_acc, decimals=4, max_items=acc_max_items)
+    max_train = int(y_train.max(initial=-1))
+    max_val = int(y_val.max(initial=-1))
+    num_classes = max(max_train, max_val) + 1
+    if num_classes <= 0:
+        raise ValueError("No classes found (empty labels?).")
 
+    train_counts = np.bincount(y_train, minlength=num_classes)
+    val_counts = np.bincount(y_val, minlength=num_classes)
+    x = np.arange(num_classes)
 
-    if left_acc_str is not None:
-        left_title += f"\n(Acc: [{left_acc_str}])"
-    if right_acc_str is not None:
-        right_title += f"\n(Acc: [{right_acc_str}])"
+    tick_labels = build_tick_labels(num_classes, class_names)
+    tick_idx = sparse_xticks(num_classes, max_xticks)
 
-    left_title = wrap_text(left_title, 80)
-    right_title = wrap_text(right_title, 80)
+    bar_colors = None
+    if use_config_colors and class_names is not None:
+        name_to_color = {}
+        for m in (VOC_CLASSES, UAVDT_CLASSES, VISDRONE_CLASSES, AUAIR_CLASSES):
+            for _, info in m.items():
+                name_to_color[str(info.name)] = str(info.color)
 
-    fig, axes = plt.subplots(1, 2, figsize=figsize)
+        bar_colors = [name_to_color.get(str(n), None) for n in tick_labels]
 
-    vmin = vmax = None
-    if shared_scale:
-        vmin = float(min(np.nanmin(cm_left), np.nanmin(cm_right)))
-        vmax = float(max(np.nanmax(cm_left), np.nanmax(cm_right)))
+    fig, axes = plt.subplots(1, 2, figsize=figsize, constrained_layout=True)
 
-    plot_heatmap(
-        axes[0], cm_left, class_names, left_title, fmt,
-        left_cmap, 45, vmin=vmin, vmax=vmax)
-    plot_heatmap(
-        axes[1], cm_right, class_names, right_title, fmt,
-        right_cmap, 45, vmin=vmin, vmax=vmax)
+    axes[0].bar(x, train_counts, color=bar_colors, edgecolor="black")
+    axes[0].set_title("Train Sample Distribution")
+    axes[0].set_xlabel("Class")
+    axes[0].set_ylabel("Count")
+    axes[0].set_xticks(tick_idx)
+    axes[0].set_xticklabels([tick_labels[i] for i in tick_idx], rotation=rotate, ha="right")
 
-    for ax in axes:
-        ax.set_aspect("equal")
-        ax.tick_params(axis="x", labelsize=8)
-        ax.tick_params(axis="y", labelsize=8)
-        plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
+    axes[1].bar(x, val_counts, color=bar_colors, edgecolor="black")
+    axes[1].set_title("Validation/Test Sample Distribution")
+    axes[1].set_xlabel("Class")
+    axes[1].set_ylabel("Count")
+    axes[1].set_xticks(tick_idx)
+    axes[1].set_xticklabels([tick_labels[i] for i in tick_idx], rotation=rotate, ha="right")
 
-        ax.set_xticks(np.arange(-0.5, cm_left.shape[1], 1), minor=True)
-        ax.set_yticks(np.arange(-0.5, cm_left.shape[0], 1), minor=True)
-        ax.grid(which="minor", color="white", linewidth=0.8)
-        ax.tick_params(which="minor", bottom=False, left=False)
-
-    plt.tight_layout()
     if save_path is not None:
         save_figure(fig, save_path)
     if show:

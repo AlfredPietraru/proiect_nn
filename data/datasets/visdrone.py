@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import random
 from typing import Dict, List, Optional, Tuple
 
 import albumentations as A
@@ -8,12 +9,13 @@ import cv2
 import torch
 from torch.utils.data import Dataset
 
-from data.datasets.config import VISDRONE_CLASSES, VISDRONE_NAME_TO_ID
+from data.datasets.config import VISDRONE_CLASSES, VISDRONE_NAME_TO_ID, make_target
 from data.datasets.download import download_visdrone
 from utils.logger import Logger
 
 
-def find_visdrone_pairs(root: Path, split: str) -> Tuple[List[Path], List[Path]]:
+def find_visdrone_pairs(root: Path, split: str, percentage: float = 1.0) -> Tuple[List[Path], List[Path]]:
+    """Find VisDrone image and annotation file pairs."""
     img_dir = root / split / "images"
     ann_dir = root / split / "annotations"
 
@@ -29,14 +31,24 @@ def find_visdrone_pairs(root: Path, split: str) -> Tuple[List[Path], List[Path]]
             images.append(img_path)
             annots.append(ann_path)
 
+    # Shuffle and sample according to a percentage
+    n = len(images)
+    k = max(1, int(round(n * percentage)))
+    indices = list(range(n))
+    random.shuffle(indices)
+
+    images = [images[i] for i in indices[:k]]
+    annots = [annots[i] for i in indices[:k]]
     return images, annots
 
 
-def parse_visdrone_txt(ann_path: Path) -> Tuple[List[List[float]], List[int]]:
-    boxes: List[List[float]] = []
-    labels: List[int] = []
+def parse_visdrone_txt(ann_path: Path) -> Dict[str, List]:
+    """Parse VisDrone annotation from a text file."""
+    boxes, labels = [], []
 
-    for line in ann_path.read_text(encoding="utf-8").splitlines():
+    anns_data = ann_path.read_text(encoding="utf-8")
+
+    for line in anns_data.splitlines():
         line = line.strip()
         if not line:
             continue
@@ -64,28 +76,16 @@ def parse_visdrone_txt(ann_path: Path) -> Tuple[List[List[float]], List[int]]:
         boxes.append([x1, y1, x2, y2])
         labels.append(cat)
 
-    return boxes, labels
-
-
-def make_target(boxes: List[List[float]], labels: List[int] | torch.Tensor) -> Dict[str, torch.Tensor]:
-    boxes_t = torch.tensor(boxes, dtype=torch.float32)
-
-    if isinstance(labels, torch.Tensor):
-        labels_t = labels.to(dtype=torch.int64)
-    else:
-        labels_t = torch.tensor(labels, dtype=torch.int64)
-
-    return {"boxes": boxes_t, "labels": labels_t}
+    return {"boxes": boxes, "labels": labels}
 
 
 class VisDroneDataset(Dataset):
     def __init__(
         self,
         details: Logger,
-        root: str,
-        split: str = "train",
+        root: str, split: str = "train",
         transform: Optional[A.Compose] = None,
-        download: bool = False,
+        download: bool = True, percentage: float = 1.0
     ) -> None:
         assert split in {"train", "val", "test"}
 
@@ -94,15 +94,19 @@ class VisDroneDataset(Dataset):
         self.transform = transform
         self.details = details
 
-        self.colors = {k: v.color for k, v in VISDRONE_CLASSES.items()}
+        self.class_to_idx = {VISDRONE_CLASSES[idx].name: idx for idx in VISDRONE_CLASSES}
+        self.colors = {idx: VISDRONE_CLASSES[idx].color for idx in VISDRONE_CLASSES}
 
         if download:
             download_visdrone(self.root, details=self.details, force=False)
 
-        self.images, self.annotations = find_visdrone_pairs(self.root, self.split)
+        self.images, self.annotations = find_visdrone_pairs(self.root, self.split, percentage)
 
         if self.details:
-            self.details.info(f"Loaded {len(self.images)} VisDrone images for split='{self.split}'")
+            details.info(
+                f"Loaded {len(self.images)} VisDrone images for "
+                f"split='{self.split}' percentage={percentage} \n"
+                f"labels={list(self.class_to_idx.keys())}, from root='{self.root}'")
 
     def __len__(self) -> int:
         return len(self.images)
@@ -115,10 +119,13 @@ class VisDroneDataset(Dataset):
         if image is None:
             raise RuntimeError(f"Failed to read image: {img_path}")
 
-        boxes, labels = parse_visdrone_txt(ann_path)
+        parsed = parse_visdrone_txt(ann_path)
+        boxes = parsed.get("boxes", [])
+        labels = parsed.get("labels", [])
 
         if self.transform is not None:
             t = self.transform(image=image, bboxes=boxes, labels=labels)
             image, boxes, labels = t["image"], t["bboxes"], t["labels"]
 
-        return torch.tensor(image), make_target(boxes, labels)
+        self.details.debug(f"Image {img_path.name}: boxes={len(boxes)}, labels={labels}")
+        return image, make_target(boxes, labels)

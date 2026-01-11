@@ -95,7 +95,7 @@ def plot_confusion_matrices_side_by_side(
     cm_right = normalize_rows(np.asarray(cm_right))
     fmt = ".2f"
 
-    left_acc_str = format_series(left_acc, decimals=4, max_items=)
+    left_acc_str = format_series(left_acc, decimals=4, max_items=acc_max_items)
     right_acc_str = format_series(right_acc, decimals=4, max_items=acc_max_items)
 
     if left_acc_str is not None:
