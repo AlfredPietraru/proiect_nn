@@ -19,8 +19,7 @@ def evaluate_cam_bboxes(
     images: torch.Tensor,       # (N,3,H,W)
     gt_boxes: torch.Tensor,     # (N,G,4)
     gt_labels: torch.Tensor,    # (N,G)
-    iou_thr: float = 0.5,
-    cam_thr: float = 0.35,
+    iou_thr: float = 0.5, cam_thr: float = 0.35
 ) -> Dict[str, float]:
     N = images.shape[0]
 

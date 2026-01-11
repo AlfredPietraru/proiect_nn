@@ -17,12 +17,9 @@ def unwrap_model(m: nn.Module) -> nn.Module:
 class EMA:
     def __init__(
         self,
-        teacher_model: nn.Module,
-        decay: float = 0.9996,
-        init_from: Optional[nn.Module] = None,
-        adaptive: bool = False,
-        alpha_min: float = 0.99,
-        alpha_max: float = 0.9999,
+        teacher_model: nn.Module, decay: float = 0.9996, 
+        init_from: Optional[nn.Module] = None, adaptive: bool = False, 
+        alpha_min: float = 0.99, alpha_max: float = 0.9999
     ) -> None:
         if not (0.0 <= decay < 1.0):
             raise ValueError("Decay must be in [0,1)")
@@ -97,7 +94,7 @@ class EMA:
             "adaptive": self.adaptive,
             "alpha_min": self.alpha_min,
             "alpha_max": self.alpha_max,
-            "ema": self.ema.state_dict(),
+            "ema": self.ema.state_dict()
         }
 
     def load_state_dict(self, sd: Dict[str, Any]) -> None:
