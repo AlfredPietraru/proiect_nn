@@ -81,8 +81,8 @@ def match_points_to_gt(
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     if gt.points.numel() == 0:
         raise ValueError("No ground-truth boxes provided for matching.")
-    if gt.points.ndim != 2 or gt.points.size(1) != 2:
-        raise ValueError("For GT must be shaped (Ng,2) points.")
+    if gt.points.ndim != 2 or gt.points.size(1) != 4:
+        raise ValueError("For GT must be shaped (Ng,4) boxes (x1,y1,x2,y2).")
 
     gt_boxes = gt.points        # (Ng,4)
     gt_labels = gt.labels       # (Ng,)
