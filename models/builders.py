@@ -1,9 +1,54 @@
 from __future__ import annotations
 
-import math
 from typing import Iterable, List
-
+import math
 import torch
+
+from models.hyperparams import ExperimentConfig
+from models.faster_resnet import get_model_fasterrcnn
+from models.gradcam_resnet import get_model_resnet_gradcam
+from models.yolon11 import get_model_yolo11
+
+
+def build_model(cfg: ExperimentConfig) -> torch.nn.Module:
+    """
+    Models used in the experiments are only 3:
+    (make sure that the model.arch in config is one of these)
+    - Faster R-CNN with ResNet50-FPN backbone
+    - ResNet50 with GradCAM++
+    - YOLO-N11
+    """
+    arch = getattr(cfg.model, "arch")
+    if arch == "fasterrcnn":
+        return get_model_fasterrcnn(cfg=cfg)
+    if arch == "resnet50_gradcampp":
+        return get_model_resnet_gradcam(cfg=cfg)
+    if arch == "yolo11":
+        return get_model_yolo11(cfg=cfg)
+    raise ValueError(f"Unknown Model Architecture: {arch}")
+
+
+def build_optimizer(cfg: ExperimentConfig, model: torch.nn.Module) -> torch.optim.Optimizer:
+    """
+    Builds optimizer based on the configuration.
+    Supported optimizers: SGD, AdamW, Adam
+    """
+    opt_lower = cfg.optim.opt.lower()
+    if opt_lower == "sgd":
+        return torch.optim.SGD(
+            lr=cfg.optim.lr, params=model.parameters(),
+            momentum=cfg.optim.momentum,
+            weight_decay=cfg.optim.weight_decay,
+            nesterov=cfg.optim.nesterov)
+    if opt_lower == "adamw":
+        return torch.optim.AdamW(
+            lr=cfg.optim.lr, params=model.parameters(),
+            weight_decay=cfg.optim.weight_decay)
+    if opt_lower == "adam":
+        return torch.optim.Adam(
+            lr=cfg.optim.lr, params=model.parameters(),
+            weight_decay=cfg.optim.weight_decay)
+    raise ValueError(f"Unknown optimizer: {opt_lower}")
 
 
 def clamp01(x: float) -> float:
@@ -56,7 +101,7 @@ def build_scheduler(
     steps_per_epoch: int, milestones: List[int],
     warmup_epochs: int = 3, warmup_bias_lr: float = 0.1,
     min_lr_ratio: float = 0.005, gamma: float = 0.1
-) -> torch.optim.lr_scheduler.LambdaLR:
+) -> torch.optim.lr_scheduler._LRScheduler:
     scheme = scheme.lower().strip()
 
     if total_epochs <= 0 or steps_per_epoch <= 0:

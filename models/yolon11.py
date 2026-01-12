@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Union
 
 import torch
 import torch.nn as nn
@@ -11,13 +11,9 @@ from .hyperparams import ExperimentConfig
 
 class YOLO11Detector(nn.Module):
     def __init__(
-        self,
-        num_classes: int,
-        imgsz: int,  # 512 / 640
-        conf: float, iou: float,
-        weights_path: str = "yolo11n.pt",
-        max_det: int = 300,
-        agnostic_nms: bool = True,
+        self, num_classes: int, imgsz: int,  # 512 / 640
+        conf: float, iou: float,  weights_path: str = "yolo11n.pt",
+        max_det: int = 300, agnostic_nms: bool = True, device: Optional[str] = None
     ) -> None:
         super().__init__()
 
@@ -37,10 +33,7 @@ class YOLO11Detector(nn.Module):
         self.iou = iou
         self.max_det = max_det
         self.agnostic_nms = agnostic_nms
-
-    @property
-    def device(self) -> torch.device:
-        return next(self.yolo.model.parameters()).device
+        self.device = torch.device(device) if device is not None else torch.device("cpu")
 
     def to(self, *args, **kwargs):
         super().to(*args, **kwargs)
@@ -51,7 +44,7 @@ class YOLO11Detector(nn.Module):
     def forward(
         self,
         x: torch.Tensor,
-        targets: Optional[List[Dict[str, torch.Tensor]]] = None,
+        targets: Optional[List[Dict[str, torch.Tensor]]] = None
     ) -> Tuple[List[Dict[str, torch.Tensor]], Dict[str, torch.Tensor]]:
         if targets is not None:
             raise NotImplementedError("YOLO11Detector does not support training mode.")
@@ -93,12 +86,19 @@ class YOLO11Detector(nn.Module):
 
         for i, r in enumerate(results):
             b = r.boxes
-            if b is None or b.xyxy is None or b.xyxy.numel() == 0:
+            if b is None:
                 continue
 
-            boxes = b.xyxy.to(device=self.device, dtype=torch.float32)
-            labels = b.cls.to(device=self.device, dtype=torch.long)
-            scores = b.conf.to(device=self.device, dtype=torch.float32)
+            xyxy = getattr(b, "xyxy", None)
+            if xyxy is None:
+                continue
+
+            boxes = torch.tensor(xyxy, device=self.device, dtype=torch.float32)
+            if boxes.numel() == 0:
+                continue
+
+            labels = torch.tensor(getattr(b, "cls", []), device=self.device, dtype=torch.long)
+            scores = torch.tensor(getattr(b, "conf", []), device=self.device, dtype=torch.float32)
 
             k = min(M, boxes.shape[0])
             if k == 0:
@@ -108,6 +108,42 @@ class YOLO11Detector(nn.Module):
             labels_b[i, :k] = labels[:k]
             scores_b[i, :k] = scores[:k]
             valid_b[i, :k] = True
+
+        return boxes_b, labels_b, scores_b, valid_b
+
+    def extract_features(
+        self,
+        images: Union[torch.Tensor, List[torch.Tensor]]
+    ) -> Dict[str, torch.Tensor]:
+        x_list = self.as_image_list(images)
+        x_list = [im for im in x_list]
+
+        images_t, _ = self.transform(x_list, None)
+        feats = self.backbone(images_t.tensors)
+        if not isinstance(feats, dict):
+            raise TypeError("Backbone must return dict[str, Tensor].")
+
+        return feats
+
+    def predict_boxes_logits(
+        self,
+        images: Union[torch.Tensor, List[torch.Tensor]]
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        x_list = self.as_image_list(images)
+        x_list = [im for im in x_list]
+
+        images_t, _ = self.transform(x_list, None)
+        logits = self.backbone(images_t.tensors)
+
+        N, M = images_t.tensors.shape[0], self.max_det
+        boxes_b = images_t.tensors.new_zeros((N, M, 4), dtype=torch.float32)
+        labels_b = images_t.tensors.new_full((N, M), -1, dtype=torch.long)
+        scores_b = images_t.tensors.new_zeros((N, M), dtype=torch.float32)
+        valid_b = images_t.tensors.new_zeros((N, M), dtype=torch.bool)
+
+        class_idx = torch.argmax(logits, dim=1)
+        labels_b.fill_(class_idx.view(-1, 1))        
+        boxes_b, labels_b, scores_b, valid_b = self.predict_packed(images_t.tensors)
 
         return boxes_b, labels_b, scores_b, valid_b
 

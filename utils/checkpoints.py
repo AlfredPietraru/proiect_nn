@@ -29,7 +29,7 @@ def load_checkpoint(
     path: str,
     model: nn.Module,
     optimizer: Optional[torch.optim.Optimizer] = None,
-    device: torch.device | str = "cuda",
+    device: torch.device = torch.device("cpu")
 ) -> Tuple[nn.Module, Optional[torch.optim.Optimizer], int]:
     if not os.path.isfile(path):
         raise FileNotFoundError(f"Checkpoint not found: {path}")

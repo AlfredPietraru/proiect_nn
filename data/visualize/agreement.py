@@ -1,27 +1,28 @@
 from __future__ import annotations
 
-from typing import Sequence, Tuple, Dict
+from typing import Sequence, Tuple, Dict, Optional
 
 import numpy as np
+import torch
 import matplotlib.pyplot as plt
-import seaborn as sns
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
+import seaborn as sns
 
+from data.visualize.visualize_common import normalize_rows, save_figure
 
-def normalize_rows(x: np.ndarray) -> np.ndarray:
-    x = x.astype(float, copy=False)
-    rs = x.sum(axis=1, keepdims=True)
-    rs[rs == 0] = 1.0
-    return x / rs
+sns.set_theme(style="whitegrid")
 
 
 def agreement_matrix(
-    teacher_labels: np.ndarray,
-    student_labels: np.ndarray,
-    num_classes: int,
-    normalize: bool = True,
+    teacher_labels: np.ndarray, student_labels: np.ndarray,
+    num_classes: int, normalize: bool = True
 ) -> np.ndarray:
+    """
+    Teacher-student agreement matrix.
+    Confusion matrix where rows are teacher labels
+    and columns are student labels.
+    """
     cm = np.zeros((num_classes, num_classes), dtype=np.float32)
 
     for t, s in zip(teacher_labels, student_labels):
@@ -32,23 +33,25 @@ def agreement_matrix(
 
 
 def plot_agreement_heatmap(
-    cm: np.ndarray,
-    class_names: Sequence[str], *,
-    title: str,
-    cmap: str = "Blues",
-    figsize: Tuple[int, int] = (8, 6),
-    show: bool = True,
+    cm: np.ndarray, class_names: Sequence[str],
+    title: str, cmap: str = "Blues",
+    figsize: Tuple[int, int] = (8, 6), 
+    show: bool = True, save_path: Optional[str] = None
 ) -> Tuple[Figure, Axes]:
+    """
+    Plot agreement heatmap from confusion matrix.
+    Visualizes how often student predictions agree with teacher predictions.
+    The axes are:
+    - Y-axis: teacher predictions (rows)
+    - X-axis: student predictions (columns)
+    """
 
     fig, ax = plt.subplots(figsize=figsize)
 
-    sns.heatmap(
-        cm, ax=ax, annot=True, fmt=".2f",
-        cmap=cmap, square=True, cbar=True,
-        xticklabels=class_names,
-        yticklabels=class_names,
-        linewidths=0.5, linecolor="white",
-    )
+    sns.heatmap(cm, ax=ax, annot=True, fmt=".2f",
+                cmap=cmap, square=True, cbar=True,
+                xticklabels=class_names, yticklabels=class_names,
+                linewidths=0.5, linecolor="white")
 
     ax.set_title(title)
     ax.set_xlabel("Student prediction")
@@ -57,6 +60,8 @@ def plot_agreement_heatmap(
     ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
 
     plt.tight_layout()
+    if save_path is not None:
+        save_figure(fig, save_path)
     if show:
         plt.show()
 
@@ -66,10 +71,9 @@ def plot_agreement_heatmap(
 def plot_agreement_ema_vs_kdd(
     teacher_ema: np.ndarray, student_ema: np.ndarray,
     teacher_kdd: np.ndarray, student_kdd: np.ndarray,
-    class_names: Sequence[str], *,
-    arch_name: str,
-    figsize: Tuple[int, int] = (16, 6),
-    show: bool = True,
+    class_names: Sequence[str], arch_name: str,
+    figsize: Tuple[int, int] = (16, 6), 
+    show: bool = True, save_path: Optional[str] = None
 ) -> Tuple[Figure, np.ndarray]:
 
     num_classes = len(class_names)
@@ -95,6 +99,8 @@ def plot_agreement_ema_vs_kdd(
         ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
 
     plt.tight_layout()
+    if save_path is not None:
+        save_figure(fig, save_path)
     if show:
         plt.show()
 
@@ -103,22 +109,18 @@ def plot_agreement_ema_vs_kdd(
 
 def plot_cross_arch_agreement(
     agreement_by_arch: Dict[str, np.ndarray],
-    class_names: Sequence[str], *,
-    teacher_arch: str,
-    figsize: Tuple[int, int] = (18, 6),
-    show: bool = True,
+    class_names: Sequence[str], teacher_arch: str,
+    figsize: Tuple[int, int] = (18, 6), 
+    show: bool = True, save_path: Optional[str] = None
 ) -> Tuple[Figure, np.ndarray]:
 
     fig, axes = plt.subplots(1, len(agreement_by_arch), figsize=figsize)
     axes = np.atleast_1d(axes)
 
     for ax, (student_arch, cm) in zip(axes, agreement_by_arch.items()):
-        sns.heatmap(
-            cm, ax=ax, annot=True, fmt=".2f",
-            cmap="Purples", square=True,
-            xticklabels=class_names,
-            yticklabels=class_names,
-        )
+        sns.heatmap(cm, ax=ax, annot=True, fmt=".2f", 
+                    cmap="Purples", square=True,
+                    xticklabels=class_names, yticklabels=class_names)
         ax.set_title(f"{teacher_arch} - {student_arch}")
         ax.set_xlabel("Student")
         ax.set_ylabel("Teacher")
@@ -126,7 +128,22 @@ def plot_cross_arch_agreement(
         ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
 
     plt.tight_layout()
+    if save_path is not None:
+        save_figure(fig, save_path)
     if show:
         plt.show()
 
     return fig, axes
+
+
+@torch.no_grad()
+def plot_agreement_teacher_vs_student(
+    teacher_logits: torch.Tensor, student_logits: torch.Tensor,
+    class_names: Sequence[str], title: str, 
+    show: bool = True, save_path: Optional[str] = None
+) -> None:
+    """Plot a teacher-vs-student label agreement heatmap (argmax logits -> agreement matrix)."""
+    t = teacher_logits.argmax(dim=1).detach().cpu().numpy()
+    s = student_logits.argmax(dim=1).detach().cpu().numpy()
+    cm = agreement_matrix(t, s, len(class_names))
+    plot_agreement_heatmap(cm, class_names, title=title, show=show, save_path=save_path)

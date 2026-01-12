@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Mapping
+from typing import Mapping, List, Dict
+import torch
 
 
 @dataclass(frozen=True)
@@ -9,7 +10,6 @@ class ClassInfo:
     name: str
     color: str
 
-#! 0 - reserved for background / no class
 
 # ----------------------------
 # VOC (Pascal VOC 20 classes)
@@ -36,11 +36,6 @@ VOC_CLASSES: Mapping[int, ClassInfo] = {
     17: ClassInfo("sofa", "#F9844A"),
     18: ClassInfo("train", "#277DA1"),
     19: ClassInfo("tvmonitor", "#43AA8B"),
-}
-
-VOC_KAGGLE_DATASETS: dict[str, str] = {
-    "2007": "zaraks/pascal-voc-2007",                   # Pascal VOC 2007 - usually used for testing
-    "2012": "gopalbhattrai/pascal-voc-2012-dataset",    # Pascal VOC 2012 - usually used for training
 }
 # Mapping from class name to class id for VOC
 VOC_NAME_TO_ID: Mapping[str, int] = {v.name: k for k, v in VOC_CLASSES.items()}
@@ -96,3 +91,20 @@ AUAIR_CLASSES: Mapping[int, ClassInfo] = {
 }
 # Mapping from class name to class id for AU-AIR
 AUAIR_NAME_TO_ID: Mapping[str, int] = {v.name: k for k, v in AUAIR_CLASSES.items()}
+
+
+def make_target(boxes: List[List[float]], labels: List[int] | torch.Tensor) -> Dict[str, torch.Tensor]:
+    if boxes is None:
+        boxes = []
+    if labels is None:
+        labels = []
+
+    boxes_t = torch.as_tensor(boxes, dtype=torch.float32)
+    labels_t = torch.as_tensor(labels, dtype=torch.int64)
+
+    if boxes_t.numel() == 0:
+        boxes_t = boxes_t.reshape(0, 4)
+    if labels_t.numel() == 0:
+        labels_t = labels_t.reshape(0)
+
+    return {"boxes": boxes_t, "labels": labels_t}
