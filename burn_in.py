@@ -79,8 +79,9 @@ def pipeline_burn_in(
         train_hist = train_burn_in_one_epoch(
             model=model, optimizer=optimizer, scheduler=lr_scheduler, data=data, device=device,
             max_iter=(cfg.train.log_interval * 999999), metric_keys=metric_keys)
+        print(train_hist)
         plotter.update(epoch_metrics=train_hist)
-        plotter.plot_total(save_dir="graphs")
+        plotter.plot_total(save_dir="graphs", save_path="results.png")
 
         if (epoch + 1) % cfg.train.ckpt_interval == 0 or (epoch + 1) == cfg.train.epochs:
             os.makedirs("burn_in" + cfg.model.arch + "_checkpoints", exist_ok=True)

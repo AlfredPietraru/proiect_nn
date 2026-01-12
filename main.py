@@ -20,7 +20,7 @@ if __name__ == "__main__":
     device = torch.device(cfg.train.device)
 
     checkpoint_dir = "burn_in" + cfg.model.arch + "_checkpoints"
-    os.makedirs("burn_in" + cfg.model.arch + "_checkpoints", exist_ok=True)
+    os.makedirs(checkpoint_dir, exist_ok=True)
 
     data = build_dataloaders(cfg)
 

@@ -57,7 +57,7 @@ class DataCfg:
     uavdt_dir: str = "UAVDT"
     auair_dir: str = "AUAIR"
 
-    img_size: int = 512
+    img_size: int = 128
     batch_size: int = 8
     num_workers: int = 4
     pin_memory: bool = True
@@ -77,7 +77,7 @@ class DataCfg:
 
 @dataclass
 class ModelCfg:
-    arch: ArchName = "fasterrcnn"
+    arch: ArchName = "resnet50_gradcampp"
     num_classes: int = 20
 
     pretrained: bool = True
@@ -118,7 +118,7 @@ class SchedCfg:
 @dataclass
 class TrainCfg:
     device: str = "cuda:0"
-    epochs: int = 4
+    epochs: int = 10
     use_amp: bool = True
     max_grad_norm: float | None = None
 

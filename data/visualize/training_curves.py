@@ -26,6 +26,7 @@ class TrainingCurveSupervised:
         os.makedirs(save_dir, exist_ok=True)
         if "total" not in self.history:
             return
+        print("aiciii")
 
         epochs = list(range(1, len(self.history["total"]) + 1))
         fig, ax = plt.subplots(figsize=(8, 5))
@@ -38,7 +39,7 @@ class TrainingCurveSupervised:
 
         fig.tight_layout()
         if save_path is not None:
-            save_figure(fig, save_path)
+            save_figure(fig, os.path.join(save_dir, save_path))
         if show:
             plt.show()
 

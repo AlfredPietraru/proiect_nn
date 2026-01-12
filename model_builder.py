@@ -1,7 +1,7 @@
 from models.hyperparams import ExperimentConfig
 import torch
 from models.faster_resnet import get_model_fasterrcnn
-from models.gradcam_resnet import get_model_resnet_gradcam
+from models.gradcam_resnet import ResNet50GradCamPP
 from models.yolon11 import get_model_yolo11
 
 def build_model(cfg: ExperimentConfig) -> torch.nn.Module:
@@ -16,7 +16,7 @@ def build_model(cfg: ExperimentConfig) -> torch.nn.Module:
     if arch == "fasterrcnn":
         return get_model_fasterrcnn(cfg=cfg)
     if arch == "resnet50_gradcampp":
-        return get_model_resnet_gradcam(cfg=cfg)
+        return ResNet50GradCamPP(cfg=cfg)
     if arch == "yolo11":
         return get_model_yolo11(cfg=cfg)
     raise ValueError(f"Unknown Model Architecture: {arch}")

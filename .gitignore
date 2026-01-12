@@ -18,3 +18,4 @@ eggs/
 datasets
 burn_infasterrcnn_checkpoints
 logs
+burn_inresnet50_gradcampp_checkpoints

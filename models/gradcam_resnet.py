@@ -12,61 +12,69 @@ from .gradcam_train import GradCAMPP
 
 from .hyperparams import ExperimentConfig
 
-
+# Components:
+# - Backbone (ResNet50) with classification head
+# - Grad-CAM++ module for generating class activation maps and extracting bounding boxes
+# - The Grad-CAM++ module hooks into the specified target layer of the backbone
+# - The backbone can be frozen to prevent weight updates during training
+# - The model can return either classification logits or bounding boxes based on Grad-CAM++ outputs
+# - The target layer is specified as a string, allowing flexibility in choosing which layer to use for CAM generation
+# - Strict hooks ensure that the target layer exists in the model architecture
 class ResNet50GradCamPP(nn.Module):
     def __init__(
         self,
-        num_classes: int, strict_hooks: bool = True,
-        weights = ResNet50_Weights.IMAGENET1K_V2,
-        freeze_backbone: bool = False, target: str = "layer4[-1]"
+        cfg : ExperimentConfig
     ) -> None:
         super().__init__()
-
-        # Components:
-        # - Backbone (ResNet50) with classification head
-        # - Grad-CAM++ module for generating class activation maps and extracting bounding boxes
-        # - The Grad-CAM++ module hooks into the specified target layer of the backbone
-        # - The backbone can be frozen to prevent weight updates during training
-        # - The model can return either classification logits or bounding boxes based on Grad-CAM++ outputs
-        # - The target layer is specified as a string, allowing flexibility in choosing which layer to use for CAM generation
-        # - Strict hooks ensure that the target layer exists in the model architecture
         self.backbone = ResNet50Backbone(
-            num_classes=num_classes, weights=weights,
-            freeze_backbone=freeze_backbone, target=target)
+            num_classes=int(cfg.data.num_classes),
+            weights=ResNet50_Weights.IMAGENET1K_V2,
+            freeze_backbone=False, 
+            target="layer4[-1]")
+        
         self.campp = GradCAMPP(
             model=self.backbone,
             target_layer=self.backbone.target_layer, 
-            strict_hooks=strict_hooks)
+            strict_hooks=True)
 
     def forward(
         self,
-        x: torch.Tensor,
-        targets: Optional[Union[torch.Tensor, List[Dict[str, torch.Tensor]]]] = None,
+        x: List[torch.Tensor],
+        targets: Optional[List[Dict[str, torch.Tensor]]] = None,
         topk: int = 1, thr: float = 0.35, detach_outputs: bool = True,
     ) -> Tuple[List[Dict[str, torch.Tensor]], Dict[str, torch.Tensor]]:
-        if x.ndim != 4:
-            raise ValueError("Input must be NCHW")
-
+        x = torch.stack(x, dim=0)
         logits = self.backbone(x)
 
+        # cls = []
+        # for t in targets:
+        #     y = t["labels"]
+        #     cls.append(y.to(torch.long))
+
+        # max_len = max(c.numel() for c in cls)
+        # cls_tensor = torch.full((len(cls), max_len), -1, device=x[0].device)
+        # for i, c in enumerate(cls):
+        #     cls_tensor[i, :c.numel()] = c
+        # print(cls_tensor.shape)
+        # print(logits.shape)
         loss_dict: Dict[str, torch.Tensor] = {}
         if targets is not None:
-            if torch.is_tensor(targets):
-                class_targets = targets
-            else:
-                cls = []
-                for t in targets:
-                    y = t.get("labels", None)
-                    cls.append(int(y[0].item()) if y is not None and y.numel() > 0 else 0)
-                class_targets = torch.tensor(cls, device=x.device, dtype=torch.long)
+            cls = []
+            for t in targets:
+                y = t.get("labels", None)
+                cls.append(int(y[0].item()) if y is not None and y.numel() > 0 else 0)
+            cls_tensor = torch.tensor(cls, device=x.device, dtype=torch.long)
 
-            loss_dict = {}
-            loss_dict["loss"] = F.cross_entropy(logits, class_targets)
 
-        class_idx = torch.argmax(logits, dim=1)
-        prev = [p.requires_grad for p in self.backbone.parameters()]
-        for p in self.backbone.parameters():
-            p.requires_grad_(False)
+            loss_dict["loss"] = F.cross_entropy(logits, cls_tensor, ignore_index=-1)
+            class_idx = torch.argmax(logits, dim=1)
+
+            prev = [p.requires_grad for p in self.backbone.parameters()]
+            for p in self.backbone.parameters():
+                p.requires_grad_(False)
+        else:
+            class_idx = torch.argmax(logits, dim=1)
+            prev = None
 
         try:
             boxes, labels, scores, valid = self.campp(
@@ -82,15 +90,8 @@ class ResNet50GradCamPP(nn.Module):
                     "scores": scores[i][v],
                 })
         finally:
-            for p, f in zip(self.backbone.parameters(), prev):
-                p.requires_grad_(f)
+            if prev is not None:
+                for p, f in zip(self.backbone.parameters(), prev):
+                    p.requires_grad_(f)
 
         return outputs, loss_dict
-
-
-def get_model_resnet_gradcam(cfg: ExperimentConfig) -> nn.Module:
-    return ResNet50GradCamPP(
-        num_classes=int(cfg.data.num_classes),
-        strict_hooks=True, weights=ResNet50_Weights.IMAGENET1K_V2,
-        freeze_backbone=False, target="layer4[-1]"
-    ).to(torch.device(cfg.train.device))

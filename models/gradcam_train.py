@@ -80,8 +80,6 @@ class GradCAMPP(nn.Module):
         Optional[torch.Tensor],  # scores
         Optional[torch.Tensor]   # valid
     ]:
-        if x.ndim != 4:
-            raise ValueError("Input must be NCHW.")
         if not use_gradients:
             raise RuntimeError("Grad-CAM++ needs gradients.")
 
@@ -158,7 +156,8 @@ class GradCAMPP(nn.Module):
         else:
             out = (boxes, labels, scores, valid)
 
-        return (logits.detach() if detach_outputs else logits, *out)
-
+        return out
+        # return (logits.detach() if detach_outputs else logits, *out)
+    
     def remove_hooks(self) -> None:
         self.hook.remove()
