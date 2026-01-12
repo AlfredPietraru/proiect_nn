@@ -177,3 +177,7 @@ class FasterRCNNResNet50FPN(nn.Module):
         detections, _ = self.roi_heads(feats, proposals, images_t.image_sizes, None)
         boxes_b, labels_b, scores_b, valid_b = pack_detections(detections, self.max_det, images_t.tensors.device)
         return boxes_b, labels_b, scores_b, valid_b
+    
+def get_model_fasterrcnn(cfg : ExperimentConfig):
+    return FasterRCNNResNet50FPN(int(cfg.num_classes_with_bg()), img_size=int(cfg.data.img_size), 
+        weights=FasterRCNN_ResNet50_FPN_Weights.DEFAULT, trainable_backbone_layers=3, max_det=600)
