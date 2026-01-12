@@ -15,8 +15,7 @@ sns.set_theme(style="whitegrid")
 
 
 def agreement_matrix(
-    teacher_labels: np.ndarray,
-    student_labels: np.ndarray,
+    teacher_labels: np.ndarray, student_labels: np.ndarray,
     num_classes: int, normalize: bool = True
 ) -> np.ndarray:
     """
@@ -34,8 +33,7 @@ def agreement_matrix(
 
 
 def plot_agreement_heatmap(
-    cm: np.ndarray,
-    class_names: Sequence[str],
+    cm: np.ndarray, class_names: Sequence[str],
     title: str, cmap: str = "Blues",
     figsize: Tuple[int, int] = (8, 6), 
     show: bool = True, save_path: Optional[str] = None
@@ -141,10 +139,11 @@ def plot_cross_arch_agreement(
 @torch.no_grad()
 def plot_agreement_teacher_vs_student(
     teacher_logits: torch.Tensor, student_logits: torch.Tensor,
-    class_names: Sequence[str], title: str
+    class_names: Sequence[str], title: str, 
+    show: bool = True, save_path: Optional[str] = None
 ) -> None:
     """Plot a teacher-vs-student label agreement heatmap (argmax logits -> agreement matrix)."""
     t = teacher_logits.argmax(dim=1).detach().cpu().numpy()
     s = student_logits.argmax(dim=1).detach().cpu().numpy()
     cm = agreement_matrix(t, s, len(class_names))
-    plot_agreement_heatmap(cm, class_names, title=title)
+    plot_agreement_heatmap(cm, class_names, title=title, show=show, save_path=save_path)

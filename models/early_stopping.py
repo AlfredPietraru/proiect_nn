@@ -13,10 +13,8 @@ import torch.nn as nn
 class EarlyStopping:
     def __init__(
         self,
-        patience: int = 4,
-        min_delta: float = 1e-3,
-        mode: str = "min",
-        verbose: bool = True,
+        patience: int = 4, min_delta: float = 1e-3, 
+        mode: str = "min", verbose: bool = True
     ) -> None:
         assert mode in ("min", "max"), "Mode must be 'min' or 'max'"
 

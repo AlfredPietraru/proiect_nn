@@ -53,8 +53,7 @@ def plot_kl_stagewise(
 
 
 def plot_cross_arch_kl(
-    kl_by_arch: Dict[str, List[float]],
-    teacher_arch: str,
+    kl_by_arch: Dict[str, List[float]], teacher_arch: str,
     figsize: Tuple[int, int] = (10, 6),
     show: bool = True, save_path: Optional[str] = None
 ) -> Tuple[Figure, Axes]:
@@ -81,7 +80,7 @@ def plot_cross_arch_kl(
 
 
 def plot_cross_dataset_kl(
-    kl_by_dataset: Dict[str, List[float]], *,
+    kl_by_dataset: Dict[str, List[float]],
     teacher_dataset: str, teacher_arch: str,
     figsize: Tuple[int, int] = (10, 6),
     show: bool = True, save_path: Optional[str] = None

@@ -1,52 +1,69 @@
 from __future__ import annotations
 
+from typing import Dict, List, Optional, Tuple, Union
+import random
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
-import json
 
 import albumentations as A
+import json
 import cv2
 import torch
 from torch.utils.data import Dataset
 
-from data.datasets.config import AUAIR_CLASSES, AUAIR_NAME_TO_ID
+from data.datasets.config import AUAIR_CLASSES, AUAIR_NAME_TO_ID, make_target
 from data.datasets.download import download_auair
 from utils.logger import Logger
 
 
-def load_auair_index(root: Path, split: str) -> Tuple[List[Path], Dict[str, List[dict]]]:
+def find_auair_pairs(root: Path, split: str, percentage: float = 1.0) -> Tuple[List[Path], List[List[dict]]]:
+    """Find AU-AIR image and annotation file pairs."""
     ann_file = root / "annotations" / f"{split}.json"
     img_dir = root / "images"
-
     if not ann_file.exists() or not img_dir.exists():
-        return [], {}
+        return [], []
+
+    images: List[Path] = []
+    annots: List[List[dict]] = []
 
     data = json.loads(ann_file.read_text(encoding="utf-8"))
 
     id_to_file: Dict[int, Path] = {}
     for im in data.get("images", []):
         img_id = int(im["id"])
-        file_name = im["file_name"]
-        id_to_file[img_id] = img_dir / file_name
+        id_to_file[img_id] = img_dir / im["file_name"]
 
-    per_image: Dict[str, List[dict]] = {}
+    per_image: Dict[Path, List[dict]] = {}
     for ann in data.get("annotations", []):
         img_id = int(ann["image_id"])
         img_path = id_to_file.get(img_id)
-        if img_path is None:
+        if img_path is None or not img_path.exists():
             continue
-        per_image.setdefault(str(img_path), []).append(ann)
+        per_image.setdefault(img_path, []).append(ann)
 
-    images = [Path(k) for k in per_image.keys() if Path(k).exists()]
+    images = list(per_image.keys())
     images.sort()
-    return images, per_image
+
+    # Shuffle and sample according to a percentage
+    n = len(images)
+    k = max(1, int(round(n * percentage)))
+    indices = list(range(n))
+    random.shuffle(indices)
+
+    images = [images[i] for i in indices[:k]]
+    annots = [per_image[img] for img in images]
+    return images, annots
 
 
-def parse_auair_anns(anns: List[dict]) -> Tuple[List[List[float]], List[int]]:
-    boxes: List[List[float]] = []
-    labels: List[int] = []
+def parse_auair_anns(anns: Union[Path, List[dict]]) -> Dict[str, List]:
+    """Parse AU-AIR annotations from a Path or a list of annotation dictionaries."""
+    boxes, labels = [], []
 
-    for a in anns:
+    if isinstance(anns, Path):
+        anns_data = json.loads(anns.read_text(encoding="utf-8"))
+    else:
+        anns_data = anns
+
+    for a in anns_data:
         bbox = a.get("bbox", None)
         cat = a.get("category_id", None)
         if bbox is None or cat is None:
@@ -72,28 +89,16 @@ def parse_auair_anns(anns: List[dict]) -> Tuple[List[List[float]], List[int]]:
         boxes.append([x1, y1, x2, y2])
         labels.append(cls_id)
 
-    return boxes, labels
-
-
-def make_target(boxes: List[List[float]], labels: List[int] | torch.Tensor) -> Dict[str, torch.Tensor]:
-    boxes_t = torch.tensor(boxes, dtype=torch.float32)
-
-    if isinstance(labels, torch.Tensor):
-        labels_t = labels.to(dtype=torch.int64)
-    else:
-        labels_t = torch.tensor(labels, dtype=torch.int64)
-
-    return {"boxes": boxes_t, "labels": labels_t}
+    return {"boxes": boxes, "labels": labels}
 
 
 class AUAIRDataset(Dataset):
     def __init__(
         self,
         details: Logger,
-        root: str,
-        split: str = "train",
+        root: str, split: str = "train",
         transform: Optional[A.Compose] = None,
-        download: bool = False,
+        download: bool = True, percentage: float = 1.0
     ) -> None:
         assert split in {"train", "val", "test"}
 
@@ -108,26 +113,32 @@ class AUAIRDataset(Dataset):
         if download:
             download_auair(self.root, details=self.details, force=False, quiet=False)
 
-        self.images, self.per_image = load_auair_index(self.root, self.split)
+        self.images, self.annotations = find_auair_pairs(self.root, self.split, percentage)
 
         if self.details:
-            self.details.info(f"Loaded {len(self.images)} AU-AIR images for split='{self.split}'")
+            details.info(
+                f"Loaded {len(self.images)} AU-AIR images for "
+                f"split='{self.split}' percentage={percentage} \n"
+                f"labels={list(self.class_to_idx.keys())}, from root='{self.root}'")
 
     def __len__(self) -> int:
         return len(self.images)
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
         img_path = self.images[idx]
+        ann_path = self.annotations[idx]
 
         image = cv2.imread(str(img_path), cv2.IMREAD_COLOR)
         if image is None:
             raise RuntimeError(f"Failed to read image: {img_path}")
 
-        anns = self.per_image.get(str(img_path), [])
-        boxes, labels = parse_auair_anns(anns)
+        parsed = parse_auair_anns(ann_path)
+        boxes = parsed.get("boxes", [])
+        labels = parsed.get("labels", [])
 
         if self.transform is not None:
             t = self.transform(image=image, bboxes=boxes, labels=labels)
             image, boxes, labels = t["image"], t["bboxes"], t["labels"]
 
-        return torch.tensor(image), make_target(boxes, labels)
+        self.details.debug(f"Image {img_path.name}: boxes={len(boxes)}, labels={labels}")
+        return image, make_target(boxes, labels)

@@ -10,7 +10,8 @@ from bbox.box_ops import box_iou
 
 
 def softmax_temp(logits: torch.Tensor, tau: float) -> torch.Tensor:
-    return F.softmax(logits / float(tau), dim=-1)
+    # logits: (..., C) unnormalized scores
+    return F.softmax(logits / tau, dim=-1)
 
 
 def kl_teacher_student(p_t: torch.Tensor, p_s: torch.Tensor) -> torch.Tensor:
@@ -31,7 +32,7 @@ def confidence_weight(c: torch.Tensor, gamma: float) -> torch.Tensor:
 
 
 def smooth_distribution(p: torch.Tensor, eps: float) -> torch.Tensor:
-    # q = (1-eps)p + eps*(1/K)
+    # q = (1-eps)*p + eps*(1/k)
     if eps <= 0:
         return p
     k = p.shape[-1]
@@ -61,7 +62,7 @@ class ClassProjector:
     def project_probs(self, p_t: torch.Tensor) -> torch.Tensor:
         out = p_t.new_zeros((*p_t.shape[:-1], self.ks))
         if self._t_idx.numel() == 0:
-            return out  # no overlap -> all zeros (caller should skip loss)
+            return out
 
         out.index_copy_(-1, self._s_idx, p_t.index_select(-1, self._t_idx))
         z = out.sum(dim=-1, keepdim=True).clamp_min(1e-12)
@@ -76,9 +77,9 @@ class WeakStrongKDD(nn.Module):
         eps: float = 0.0
     ) -> None:
         super().__init__()
-        self.tau = float(tau)
-        self.gamma = float(gamma)
-        self.eps = float(eps)
+        self.tau = tau
+        self.gamma = gamma
+        self.eps = eps
 
     def forward(
         self,
@@ -107,15 +108,15 @@ class CrossDatasetKDD(nn.Module):
     def __init__(
         self, 
         projector: ClassProjector,
-        tau: float = 2.0,
+        tau: float = 2.0, 
         gamma: float = 0.7, 
         eps: float = 0.05
     ) -> None:
         super().__init__()
         self.projector = projector
-        self.tau = float(tau)
-        self.gamma = float(gamma)
-        self.eps = float(eps)
+        self.tau = tau
+        self.gamma = gamma
+        self.eps = eps
 
     def forward(
         self,
@@ -162,7 +163,6 @@ class FeatureKDD(nn.Module):
 
         gs = gs / gs.norm(dim=1, keepdim=True).clamp_min(1e-12)
         ft = ft / ft.norm(dim=1, keepdim=True).clamp_min(1e-12)
-
         return self.beta * (gs - ft).pow(2).sum(dim=1).mean()
 
 
@@ -175,15 +175,15 @@ class BoxMatchKDD(nn.Module):
         box_l1: float = 0.0
     ) -> None:
         super().__init__()
-        self.tau = float(tau)
-        self.gamma = float(gamma)
-        self.iou_thr = float(iou_thr)
-        self.box_l1 = float(box_l1)
+        self.tau = tau
+        self.gamma = gamma
+        self.iou_thr = iou_thr
+        self.box_l1 = box_l1
 
     def forward(
         self,
         t_boxes: torch.Tensor, t_logits: torch.Tensor, t_valid: torch.Tensor,
-        s_boxes: torch.Tensor, s_logits: torch.Tensor, s_valid: torch.Tensor,
+        s_boxes: torch.Tensor, s_logits: torch.Tensor, s_valid: torch.Tensor
     ) -> torch.Tensor:
         N = t_boxes.shape[0]
         loss_sum = t_boxes.new_zeros(())

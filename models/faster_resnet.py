@@ -10,14 +10,46 @@ from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from .hyperparams import ExperimentConfig
 
 
+def pack_detections(
+    detections: List[Dict[str, torch.Tensor]],
+    max_det: int, device: torch.device
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    N = len(detections)
+    M = int(max_det)
+
+    boxes_b = torch.zeros((N, M, 4), device=device, dtype=torch.float32)
+    labels_b = torch.full((N, M), -1, device=device, dtype=torch.long)
+    scores_b = torch.zeros((N, M), device=device, dtype=torch.float32)
+    valid_b = torch.zeros((N, M), device=device, dtype=torch.bool)
+
+    for i, det in enumerate(detections):
+        if not det:
+            continue
+
+        boxes = det.get("boxes", None)
+        labels = det.get("labels", None)
+        scores = det.get("scores", None)
+
+        if boxes is None or labels is None or scores is None:
+            continue
+        if boxes.numel() == 0:
+            continue
+
+        k = min(M, boxes.shape[0])
+        boxes_b[i, :k] = boxes[:k].to(device=device, dtype=torch.float32)
+        labels_b[i, :k] = labels[:k].to(device=device, dtype=torch.long)
+        scores_b[i, :k] = scores[:k].to(device=device, dtype=torch.float32)
+        valid_b[i, :k] = True
+
+    return boxes_b, labels_b, scores_b, valid_b
+
+
 class FasterRCNNResNet50FPN(nn.Module):
     def __init__(
         self,
-        num_classes_with_bg: int,
-        img_size: int,  # 512 / 640
+        num_classes_with_bg: int, img_size: int,  # 512 / 640
         weights: Optional[FasterRCNN_ResNet50_FPN_Weights] = None,
-        trainable_backbone_layers: int = 3,
-        max_det: int = 300,
+        trainable_backbone_layers: int = 3, max_det: int = 300
     ) -> None:
         super().__init__()
 
@@ -40,7 +72,7 @@ class FasterRCNNResNet50FPN(nn.Module):
     def forward(
         self,
         images: Union[torch.Tensor, Sequence[torch.Tensor]],
-        targets: Optional[List[Dict[str, torch.Tensor]]] = None,
+        targets: Optional[List[Dict[str, torch.Tensor]]] = None
     ) -> Tuple[List[Dict[str, torch.Tensor]], Dict[str, torch.Tensor]]:
         x_list = self.as_image_list(images)
         original_sizes = [im.shape[-2:] for im in x_list]
@@ -59,7 +91,6 @@ class FasterRCNNResNet50FPN(nn.Module):
 
         image_sizes_arg = images_t.image_sizes
         if isinstance(image_sizes_arg, torch.Tensor):
-            # images_t.image_sizes is a tensor of shape (N, 2)
             image_sizes_arg = [tuple(map(int, s.tolist())) for s in image_sizes_arg]
 
         postprocess_fn = getattr(self.transform, "postprocess")
@@ -73,44 +104,10 @@ class FasterRCNNResNet50FPN(nn.Module):
 
         return outputs, loss_dict
 
-    @staticmethod
-    def pack_detections(
-        detections: List[Dict[str, torch.Tensor]],
-        max_det: int, device: torch.device,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        N = len(detections)
-        M = int(max_det)
-
-        boxes_b = torch.zeros((N, M, 4), device=device, dtype=torch.float32)
-        labels_b = torch.full((N, M), -1, device=device, dtype=torch.long)
-        scores_b = torch.zeros((N, M), device=device, dtype=torch.float32)
-        valid_b = torch.zeros((N, M), device=device, dtype=torch.bool)
-
-        for i, det in enumerate(detections):
-            if not det:
-                continue
-
-            boxes = det.get("boxes", None)
-            labels = det.get("labels", None)
-            scores = det.get("scores", None)
-
-            if boxes is None or labels is None or scores is None:
-                continue
-            if boxes.numel() == 0:
-                continue
-
-            k = min(M, boxes.shape[0])
-            boxes_b[i, :k] = boxes[:k].to(device=device, dtype=torch.float32)
-            labels_b[i, :k] = labels[:k].to(device=device, dtype=torch.long)
-            scores_b[i, :k] = scores[:k].to(device=device, dtype=torch.float32)
-            valid_b[i, :k] = True
-
-        return boxes_b, labels_b, scores_b, valid_b
-
     def loss(
         self,
         images: Union[torch.Tensor, Sequence[torch.Tensor]],
-        targets: List[Dict[str, torch.Tensor]],
+        targets: List[Dict[str, torch.Tensor]]
     ) -> Dict[str, torch.Tensor]:
         x_list = self.as_image_list(images)
         x_list = [im for im in x_list]
@@ -134,13 +131,41 @@ class FasterRCNNResNet50FPN(nn.Module):
         images: Union[torch.Tensor, Sequence[torch.Tensor]]
     ) -> List[torch.Tensor]:
         if torch.is_tensor(images):
-            x = images
-            if x.ndim != 4:
-                raise ValueError("Expected NCHW tensor.")
-            return [x[i] for i in range(x.shape[0])]
+            return [images[i] for i in range(images.shape[0])]
         if len(images) == 0:
             raise ValueError("Empty image list.")
         return list(images)
+
+    def extract_features(
+        self,
+        images: Union[torch.Tensor, Sequence[torch.Tensor]],
+    ) -> Dict[str, torch.Tensor]:
+        x_list = self.as_image_list(images)
+        x_list = [im for im in x_list]
+
+        images_t, _ = self.transform(x_list, None)
+        feats = self.backbone(images_t.tensors)
+        if not isinstance(feats, dict):
+            raise TypeError("Backbone must return dict[str, Tensor].")
+
+        return feats
+
+    def predict_boxes_logits(
+        self,
+        images: Union[torch.Tensor, Sequence[torch.Tensor]]
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        x_list = self.as_image_list(images)
+        x_list = [im for im in x_list]
+
+        images_t, _ = self.transform(x_list, None)
+        feats = self.backbone(images_t.tensors)
+        if not isinstance(feats, dict):
+            raise TypeError("Backbone must return dict[str, Tensor].")
+
+        proposals, _ = self.rpn(images_t, feats, None)
+        detections, _ = self.roi_heads(feats, proposals, images_t.image_sizes, None)
+        boxes_b, labels_b, scores_b, valid_b = pack_detections(detections, self.max_det, images_t.tensors.device)
+        return boxes_b, labels_b, scores_b, valid_b
 
 
 def get_model_fasterrcnn(cfg: ExperimentConfig) -> nn.Module:
