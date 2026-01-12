@@ -1,15 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable, List
+from typing import Callable, Tuple
 import zipfile
 import subprocess
-import shutil
 
 import gdown
 import dataset_tools as dtools
 
-from .config import VOC_KAGGLE_DATASETS
 from utils.logger import Logger
 
 
@@ -33,9 +31,14 @@ def log(details: Logger, msg: str) -> None:
     details.info(msg) if details else print(msg)
 
 
+def safe_unlink(path: str | Path) -> None:
+    p = Path(path)
+    p.unlink(missing_ok=True)
+
+
 def extract_zip(
     zip_dir: str | Path,
-    dst_dir: str | Path, *,
+    dst_dir: str | Path,
     details: Logger
 ) -> None:
     zip_dir = Path(zip_dir)
@@ -43,51 +46,53 @@ def extract_zip(
 
     ensure_dir(dst_dir)
     if is_nonempty_dir(dst_dir):
+        safe_unlink(zip_dir)
+        details.info(f"Skipping extraction, target exists: {dst_dir}")
         return
 
     log(details, f"Extracting {zip_dir.name} -> {dst_dir}")
     with zipfile.ZipFile(str(zip_dir), "r") as zf:
         zf.extractall(str(dst_dir))
+    safe_unlink(zip_dir)
 
 
 def download_asset(
-    name: str,
-    dst: str | Path, *,
-    force: bool = False,
+    dst_dir: str | Path,
+    details: Logger, name: str,
     check_exists: Callable[[Path], bool],
     download_fn: Callable[[Path], None],
-    details: Logger,
+    force: bool = False
 ) -> Path:
-    dst_path = Path(dst)
+    dst_dir = Path(dst_dir)
 
-    if (not force) and check_exists(dst_path):
-        log(details, f"{name}: exists, skipping -> {dst_path}")
-        return dst_path
+    if (not force) and check_exists(dst_dir):
+        log(details, f"{name}: exists, skipping -> {dst_dir}")
+        return dst_dir
 
-    if dst_path.suffix:
-        ensure_dir(dst_path.parent)
+    if dst_dir.suffix:
+        ensure_dir(dst_dir.parent)
     else:
-        ensure_dir(dst_path)
+        ensure_dir(dst_dir)
 
-    log(details, f"{name}: downloading -> {dst_path}")
-    download_fn(dst_path)
+    log(details, f"{name}: downloading -> {dst_dir}")
+    download_fn(dst_dir)
 
-    if not check_exists(dst_path):
-        raise RuntimeError(f"{name}: download finished but target is missing/empty -> {dst_path}")
+    if not check_exists(dst_dir):
+        raise RuntimeError(f"{name}: download finished but target is missing/empty -> {dst_dir}")
 
-    log(details, f"{name}: downloaded -> {dst_path}")
-    return dst_path
+    log(details, f"{name}: downloaded -> {dst_dir}")
+    return dst_dir
 
 
 def download_gdrive(
+    dst_dir: str | Path,
+    details: Logger,
     file_id: str,
-    out_path: str | Path, *,
     name: str = "gdrive",
     force: bool = False,
-    quiet: bool = False,
-    details: Logger
+    quiet: bool = False
 ) -> Path:
-    out_path = Path(out_path)
+    dst_dir = Path(dst_dir)
 
     def exists(p: Path) -> bool:
         return file_exists(p)
@@ -99,15 +104,15 @@ def download_gdrive(
             raise RuntimeError("gdown returned None (download failed)")
 
     return download_asset(
-        name=name, dst=out_path, force=force,
+        name=name, dst_dir=dst_dir, force=force,
         check_exists=exists, download_fn=download_fn, details=details)
 
 
 def download_dataset_supervisely(
+    dst_dir: str | Path,
     dataset_name: str,
-    dst_dir: str | Path, *,
-    force: bool = False,
     details: Logger,
+    force: bool = False
 ) -> Path:
     dst_dir = Path(dst_dir)
 
@@ -118,199 +123,99 @@ def download_dataset_supervisely(
         dtools.download(dataset=dataset_name, dst_dir=str(p))
 
     return download_asset(
-        name=f"dataset:{dataset_name}", dst=dst_dir, force=force,
+        name=f"dataset:{dataset_name}", dst_dir=dst_dir, force=force,
         check_exists=exists, download_fn=download_fn, details=details)
-
-
-def voc_is_valid(v: Path) -> bool:
-    return (
-        v.is_dir()
-        and (v / "JPEGImages").is_dir()
-        and (v / "Annotations").is_dir()
-        and (v / "ImageSets" / "Main").is_dir()
-    )
-
-
-def voc_remove_segmentation(v: Path) -> None:
-    shutil.rmtree(v / "SegmentationClass", ignore_errors=True)
-    shutil.rmtree(v / "SegmentationObject", ignore_errors=True)
-
-
-def voc_cleanup_wrappers(devkit: Path, details: Logger) -> None:
-    for p in devkit.iterdir():
-        if not p.is_dir():
-            continue
-        if p.name.startswith("VOC20"):
-            continue
-        if (
-            p.name.startswith("VOCtrainval_")
-            or p.name.startswith("VOCtest_")
-            or p.name == "VOCdevkit"
-            or p.name == "PASCAL_VOC"
-        ):
-            log(details, f"VOC: removing wrapper -> {p}")
-            shutil.rmtree(p, ignore_errors=True)
-
-
-def voc_find_sources(devkit: Path, year: str) -> List[Path]:
-    sources: List[Path] = []
-
-    for p in devkit.rglob(f"VOCdevkit/VOC{year}"):
-        if voc_is_valid(p):
-            sources.append(p)
-
-    for p in devkit.glob(f"VOC{year}_*"):
-        if voc_is_valid(p):
-            sources.append(p)
-
-    for p in devkit.rglob(f"VOC{year}"):
-        if p == devkit / f"VOC{year}":
-            continue
-        if voc_is_valid(p):
-            sources.append(p)
-
-    seen = set()
-    uniq: List[Path] = []
-    for s in sources:
-        r = str(s.resolve())
-        if r not in seen:
-            uniq.append(s)
-            seen.add(r)
-    return uniq
-
-
-def voc_pick_trainval_and_test(sources: List[Path]) -> tuple[Path, Path | None]:
-    trainval = None
-    test = None
-
-    for s in sources:
-        s_str = str(s).lower()
-        if ("trainval" in s_str) or ("train_val" in s_str) or ("train-val" in s_str):
-            trainval = s
-        if ("/voctest_" in s_str) or ("_test" in s_str) or ("test" in s_str and "train" not in s_str):
-            test = s
-
-    base = trainval or sources[0]
-    return base, test
-
-
-def copy_missing_dir(src: Path, dst: Path) -> None:
-    if not src.exists():
-        return
-    dst.mkdir(parents=True, exist_ok=True)
-    for item in src.rglob("*"):
-        rel = item.relative_to(src)
-        out = dst / rel
-        if item.is_dir():
-            out.mkdir(parents=True, exist_ok=True)
-        else:
-            out.parent.mkdir(parents=True, exist_ok=True)
-            if not out.exists():
-                shutil.copy2(item, out)
-
-
-def voc_ensure_trainval_txt(voc_dir: Path) -> None:
-    main = voc_dir / "ImageSets" / "Main"
-    if not main.exists():
-        return
-
-    trainval = main / "trainval.txt"
-    train = main / "train.txt"
-    val = main / "val.txt"
-
-    if trainval.exists():
-        return
-
-    if train.exists() and val.exists():
-        ids: List[str] = []
-        for f in (train, val):
-            ids.extend([x.strip() for x in f.read_text(encoding="utf-8").splitlines() if x.strip()])
-        trainval.write_text("\n".join(ids) + "\n", encoding="utf-8")
 
 
 def download_voc(
     dst_dir: str | Path,
-    details: Logger, force: bool = False,
-    years: tuple[str, ...] = ("2007", "2012"),
-) -> Path:
-    devkit = ensure_dir(dst_dir)
+    details: Logger,
+    years: Tuple[str, ...],
+    force: bool = False,
+) -> None:
+    """
+    Download Pascal VOC from Kaggle directly to correct path structure.
+    After extraction, the structure is:
+    VOCdevkit/
+        VOC2007/
+            JPEGImages/
+            Annotations/
+        VOC2012/
+            JPEGImages/
+            Annotations/
+    """
+    VOC_KAGGLE_DATASETS: dict[str, str] = {
+        "2007": "zaraks/pascal-voc-2007",                   # Pascal VOC 2007 - usually used for testing
+        "2012": "gopalbhattrai/pascal-voc-2012-dataset",    # Pascal VOC 2012 - usually used for training
+    }    
 
-    def exists(_: Path) -> bool:
-        return all((devkit / f"VOC{y}").exists() and voc_is_valid(devkit / f"VOC{y}") for y in years)
+    final_devkit = Path(dst_dir) / "VOCdevkit"
+    final_devkit.mkdir(parents=True, exist_ok=True)
 
-    def merge_test_into_target(test_src: Path, target: Path) -> None:
-        copy_missing_dir(test_src / "JPEGImages", target / "JPEGImages")
+    if not force and all((final_devkit / f"VOC{year}" / "JPEGImages").exists() for year in years):
+        if details:
+            details.info("VOC dataset exists, skipping download")
+        return
 
-        test_txt = test_src / "ImageSets" / "Main" / "test.txt"
-        if test_txt.exists():
-            dst = target / "ImageSets" / "Main" / "test.txt"
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(test_txt, dst)
+    for year in years:
+        year = str(year)
+        target_dir = final_devkit / f"VOC{year}"
 
-    def download_fn(_: Path) -> None:
-        for y in years:
-            target = devkit / f"VOC{y}"
+        if target_dir.exists() and (target_dir / "JPEGImages").exists():
+            if details:
+                details.info(f"VOC{year} exists, skipping download")
+            continue
+        if year not in VOC_KAGGLE_DATASETS:
+            raise RuntimeError(f"No Kaggle dataset for VOC{year}")
 
-            if target.exists() and voc_is_valid(target) and not force:
-                voc_remove_segmentation(target)
-                voc_ensure_trainval_txt(target)
-                continue
+        kaggle_slug = VOC_KAGGLE_DATASETS[year]
+        if details:
+            details.info(f"Downloading VOC{year}: {kaggle_slug}")
 
-            slug = VOC_KAGGLE_DATASETS.get(str(y))
-            if slug is None:
-                raise RuntimeError(f"No Kaggle dataset configured for VOC{y}")
+        cmd = ["kaggle", "datasets", "download", "-d", kaggle_slug, "-p", str(target_dir), "--unzip"]
 
-            log(details, f"Downloading VOC{y}: {slug}")
-            subprocess.run(["kaggle", "datasets", "download", "-d", slug, "-p", str(devkit), "--unzip"], check=True)
+        try:
+            subprocess.run(cmd, check=True)
+        except FileNotFoundError:
+            raise RuntimeError("Kaggle CLI not found. Install with: pip install kaggle")
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(f"Kaggle download failed: {kaggle_slug} (code: {e.returncode})")
 
-            sources = voc_find_sources(devkit, y)
-            if not sources:
-                raise RuntimeError(f"VOC{y}: not found after unzip in {devkit}")
-
-            base, test = voc_pick_trainval_and_test(sources)
-
-            if target.exists():
-                shutil.rmtree(target, ignore_errors=True)
-
-            log(details, f"VOC{y}: moving base -> {target}")
-            shutil.move(str(base), str(target))
-
-            voc_remove_segmentation(target)
-            voc_ensure_trainval_txt(target)
-
-            if test is not None and test.exists() and voc_is_valid(test):
-                log(details, f"VOC{y}: merging test -> {target}")
-                merge_test_into_target(test, target)
-                shutil.rmtree(test, ignore_errors=True)
-
-            for s in sources:
-                if s == base or s == test:
-                    continue
-                shutil.rmtree(s, ignore_errors=True)
-
-            voc_cleanup_wrappers(devkit, details)
-
-            if not voc_is_valid(target):
-                raise RuntimeError(f"VOC{y}: final structure invalid -> {target}")
-
-            log(details, f"VOC{y} ready -> {target}")
-
-        voc_cleanup_wrappers(devkit, details)
-
-    return download_asset(
-        name="dataset:VOC", dst=devkit, force=force,
-        check_exists=exists, download_fn=download_fn, details=details)
+        if details:
+            details.info(f"VOC{year} downloaded to: {target_dir}")
 
 
-def download_uavdt(dst_dir: str | Path, details: Logger, force: bool = False) -> Path:
-    return download_dataset_supervisely("UAVDT", dst_dir, force=force, details=details)
+def download_uavdt(dst_dir: str | Path, details: Logger, force: bool = True) -> Path:
+    """
+    Download UAVDT dataset from Supervisely.
+    After extraction, the structure is:
+    uavdt/
+        images/
+        annotations/
+    """
+    return download_dataset_supervisely(dst_dir, "uavdt", details, force)
 
 
-def download_visdrone(dst_dir: str | Path, details: Logger, force: bool = False) -> Path:
-    return download_dataset_supervisely("VisDrone2019-DET", dst_dir, force=force, details=details)
+def download_visdrone(dst_dir: str | Path, details: Logger, force: bool = True) -> Path:
+    """
+    Download VisDrone dataset from Supervisely.
+    After extraction, the structure is:
+    visdrone2019-det/
+        train/
+        val/
+        test/
+    """
+    return download_dataset_supervisely(dst_dir, "visdrone2019-det", details, force)
 
 
-def download_auair(dst_dir: str | Path, details: Logger, force: bool = False, quiet: bool = False) -> Path:
+def download_auair(dst_dir: str | Path, details: Logger, force: bool = True, quiet: bool = False) -> Path:
+    """
+    Download AU-AIR dataset from Google Drive.
+    After extraction, the structure is:
+    AU_AIR/
+        images/
+        annotations/
+    """
     AUAIR_IMAGES_ID = "1pJ3xfKtHiTdysX5G3dxqKTdGESOBYCxJ"
     AUAIR_ANN_ID = "1boGF0L6olGe_Nu7rd1R8N7YmQErCb0xA"
 
@@ -327,26 +232,27 @@ def download_auair(dst_dir: str | Path, details: Logger, force: bool = False, qu
         img_zip = dst_dir / "auair_images.zip"
         ann_zip = dst_dir / "auair_annotations.zip"
 
-        download_gdrive(AUAIR_IMAGES_ID, img_zip, name="AU-AIR:images", force=force, quiet=quiet, details=details)
-        download_gdrive(AUAIR_ANN_ID, ann_zip, name="AU-AIR:annotations", force=force, quiet=quiet, details=details)
-
-        extract_zip(img_zip, images_dir, details=details)
-        extract_zip(ann_zip, ann_dir, details=details)
+        download_gdrive(img_zip, details, AUAIR_IMAGES_ID, "AU-AIR Images", force, quiet)
+        download_gdrive(ann_zip, details, AUAIR_ANN_ID, "AU-AIR Annotations", force, quiet)
+    
+        extract_zip(img_zip, images_dir, details)
+        extract_zip(ann_zip, ann_dir, details)
 
     return download_asset(
-        name="dataset:AU-AIR", dst=dst_dir, force=force,
+        name="dataset:AU-AIR", dst_dir=dst_dir, force=force,
         check_exists=exists, download_fn=download_fn, details=details)
 
 
 def download_all_datasets(
     details: Logger,
-    voc_dir: str | Path = "datasets/VOCdevkit",
-    uavdt_dir: str | Path = "datasets/UAVDT_SUPERVISELY",
-    visdrone_dir: str | Path = "datasets/VISDRONE_SUPERVISELY",
-    auair_dir: str | Path = "datasets/AU_AIR",
-    force: bool = False, quiet: bool = False
+    root: str | Path = "./datasets",
+    voc: str = "",  # already includes "VOCdevkit"
+    visdrone: str = "",  # already includes "visdrone2019-det"
+    uavdt: str = "",  # already includes "uavdt"
+    auair: str = "AU_AIR",  # does not include "AU_AIR"
+    force: bool = True, quiet: bool = False
 ) -> None:
-    download_voc(voc_dir, details=details, force=force, years=("2007", "2012"))
-    download_uavdt(uavdt_dir, details=details, force=force)
-    download_visdrone(visdrone_dir, details=details, force=force)
-    download_auair(auair_dir, details=details, force=force, quiet=quiet)
+    download_voc(Path(root) / voc, details, ("2007", "2012"), force)
+    download_uavdt(Path(root) / uavdt, details, force)
+    download_visdrone(Path(root) / visdrone, details, force)
+    download_auair(Path(root) / auair, details, force, quiet)

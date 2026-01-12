@@ -4,13 +4,13 @@ from typing import Tuple
 
 from ap import APStats, ap_for_class
 from pr import PRStats, pr_for_class
-from .metrics import DetectionStore, Metrics, ClassSelector
+from .metrics import DetectionStore, IoUMetrics, ClassSelector
 
 
 def stats_for_class(
     store: DetectionStore,
     selector: ClassSelector,
-    cls: int, cfg: Metrics
+    cls: int, cfg: IoUMetrics
 ) -> Tuple[APStats, PRStats]:
     pred_boxes_list, pred_scores_list, tgt_boxes_list = [], [], []
 

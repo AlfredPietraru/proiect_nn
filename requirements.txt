@@ -10,3 +10,4 @@ gdown>=5.2.0
 ultralytics>=8.3.250
 loguru>=0.7.3
 scikit-learn>=1.2.2
+torchviz>=0.0.2

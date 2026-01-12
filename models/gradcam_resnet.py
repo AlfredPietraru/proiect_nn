@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Dict, Tuple, Union, Optional
+from typing import List, Dict, Tuple, Union, Sequence, Optional
 
 import torch
 import torch.nn as nn
@@ -9,7 +9,6 @@ from torchvision.models import ResNet50_Weights
 
 from .resnet import ResNet50Backbone
 from .gradcam_train import GradCAMPP
-
 from .hyperparams import ExperimentConfig
 
 
@@ -76,16 +75,60 @@ class ResNet50GradCamPP(nn.Module):
             outputs: List[Dict[str, torch.Tensor]] = []
             for i in range(x.shape[0]):
                 v = valid[i].bool()
-                outputs.append({
-                    "boxes": boxes[i][v],
-                    "labels": labels[i][v],
-                    "scores": scores[i][v],
-                })
+                outputs.append({"boxes": boxes[i][v], "labels": labels[i][v], "scores": scores[i][v]})
         finally:
             for p, f in zip(self.backbone.parameters(), prev):
                 p.requires_grad_(f)
 
         return outputs, loss_dict
+
+    def extract_features(
+        self,
+        images: Union[torch.Tensor, Sequence[torch.Tensor]]
+    ) -> Dict[str, torch.Tensor]:
+        x_list = self.as_image_list(images)
+        x_list = [im for im in x_list]
+
+        images_t, _ = self.transform(x_list, None)
+        feats = self.backbone(images_t.tensors)
+        if not isinstance(feats, dict):
+            raise TypeError("Backbone must return dict[str, Tensor].")
+
+        return feats
+
+    def predict_boxes_logits(
+        self,
+        images: Union[torch.Tensor, Sequence[torch.Tensor]],
+        cam_thr: float = 0.35
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        x_list = self.as_image_list(images)
+        x_list = [im for im in x_list]
+
+        images_t, _ = self.transform(x_list, None)
+        logits = self.backbone(images_t.tensors)
+
+        N, M = images_t.tensors.shape[0], self.campp.max_det
+        boxes_b = images_t.tensors.new_zeros((N, M, 4), dtype=torch.float32)
+        labels_b = images_t.tensors.new_full((N, M), -1, dtype=torch.long)
+        scores_b = images_t.tensors.new_zeros((N, M), dtype=torch.float32)
+        valid_b = images_t.tensors.new_zeros((N, M), dtype=torch.bool)
+
+        class_idx = torch.argmax(logits, dim=1)
+
+        pred_boxes, pred_cls, pred_scores, pred_valid = self.campp(
+            images_t.tensors,
+            class_idx=class_idx,
+            topk=M, threshold=cam_thr,
+            use_gradients=False, detach_outputs=True)
+
+        k = min(M, pred_boxes.shape[1])
+        if k > 0:
+            boxes_b[:, :k, :] = pred_boxes[:, :k, :]
+            labels_b[:, :k] = pred_cls[:, :k]
+            scores_b[:, :k] = pred_scores[:, :k]
+            valid_b[:, :k] = pred_valid[:, :k]
+
+        return boxes_b, labels_b, scores_b, valid_b
 
 
 def get_model_resnet_gradcam(cfg: ExperimentConfig) -> nn.Module:

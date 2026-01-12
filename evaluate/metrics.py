@@ -13,7 +13,7 @@ from evaluate.pr import PRStats, pr_for_class
 def stats_for_class(
     store: DetectionStore,
     selector: ClassSelector,
-    cls: int, cfg: Metrics
+    cls: int, cfg: IoUMetrics
 ) -> Tuple[APStats, PRStats]:
     pred_boxes_list, pred_scores_list, tgt_boxes_list = [], [], []
 
@@ -40,11 +40,19 @@ def stats_for_class(
 
 
 @dataclass(frozen=True)
-class Metrics:
+class IoUMetrics:
     num_classes: int
     class_agnostic: bool            # Whether to ignore class labels in evaluation
     iou_thrs: Tuple[float, ...]     # IoU thresholds for AP calculation
     score_thresh: float             # Score threshold for considering predictions
+
+    def metric_names(self) -> List[str]:
+        return [
+            "mAP_50", "mAP_5095",
+            "precision", "recall", "f1",
+            "ap_num_pred", "ap_num_gt",
+            "pr_num_pred", "pr_num_gt"
+        ]
 
 
 @dataclass
@@ -67,7 +75,7 @@ class DetectionStore:
 
 @dataclass(frozen=True)
 class ClassSelector:
-    cfg: Metrics
+    cfg: IoUMetrics
 
     def num_classes(self) -> int:
         return 1 if self.cfg.class_agnostic else self.cfg.num_classes
@@ -76,7 +84,7 @@ class ClassSelector:
         self,
         pred_bl: BoxList,
         tgt_bl: BoxList,
-        cls: int,
+        cls: int
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         if self.cfg.class_agnostic:
             pred_mask = torch.ones_like(pred_bl.labels, dtype=torch.bool)
@@ -96,7 +104,7 @@ class ClassSelector:
 
 
 class DetectionMetrics:
-    def __init__(self, cfg: Metrics):
+    def __init__(self, cfg: IoUMetrics):
         self.cfg = cfg
         self.store = DetectionStore()
         self.selector = ClassSelector(cfg)

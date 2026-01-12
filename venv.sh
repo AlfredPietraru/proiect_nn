@@ -1,9 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-# Step 0 (Local): Setup Python environment for local debugging/testing before using the cluster.
-# The PDF recommends not relying on heavy remote FS sync; local venv is the simplest local workflow.
-
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="${REPO_DIR:-${SCRIPT_DIR}}"
 
@@ -20,7 +17,6 @@ if [[ ! -f "${REQ_FILE}" ]]; then
 fi
 
 python3 -m venv "${VENV_DIR}"
-# shellcheck disable=SC1090
 source "${VENV_DIR}/bin/activate"
 
 python -m pip install --upgrade pip

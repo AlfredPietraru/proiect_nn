@@ -7,14 +7,15 @@ import torch
 
 from bbox.box_ops import box_iou
 
-EPS = 1e-8
+
+EPS = 1e-6
 
 
 @dataclass
 class APStats:
     num_pred: int = 0
     num_gt: int = 0
-    values: Optional[Dict[float, float]] = None  # AvgPrecision per IoU thr
+    values: Optional[Dict[float, float]] = None  # avg precision per IoU threshold
 
     def set(self, values: Dict[float, float]) -> None:
         self.values = values
@@ -47,7 +48,7 @@ def collect_matches_multi_thr(
     pred_scores_list: List[torch.Tensor],
     tgt_boxes_list: List[torch.Tensor],
     iou_thrs: Tuple[float, ...], score_thr: float,
-    st: APStats,
+    st: APStats
 ) -> Tuple[torch.Tensor, Dict[float, List[int]]]:
     all_scores: List[torch.Tensor] = []
     all_match: Dict[float, List[int]] = {t: [] for t in iou_thrs}
@@ -97,6 +98,8 @@ def collect_matches_multi_thr(
 
             all_match[thr].extend(m_img)
 
+    if len(all_scores) == 0:
+        return torch.empty((0,), dtype=torch.float32), all_match
     return torch.cat(all_scores, dim=0), all_match
 
 
@@ -111,8 +114,7 @@ def ap_for_class(
     # Collect matches for all IoU thresholds at once
     scores, all_match = collect_matches_multi_thr(
         pred_boxes_list, pred_scores_list, tgt_boxes_list,
-        iou_thrs=iou_thrs, score_thr=score_thr, st=st
-    )
+        iou_thrs=iou_thrs, score_thr=score_thr, st=st)
 
     # Calculate AP per IoU threshold
     out = {t: 0.0 for t in iou_thrs}
@@ -126,15 +128,16 @@ def ap_for_class(
     # For each IoU threshold calculate AP
     for thr in iou_thrs:
         # Cumulate true positives and false positives
-        m = torch.tensor(all_match[thr], torch.float32, scores.device)[order]
+        m = torch.tensor(all_match[thr], dtype=torch.float32, device=scores.device)[order]
 
         # Over current IoU threshold
         cum_tp = torch.cumsum(m, dim=0)
         cum_fp = torch.cumsum(1.0 - m, dim=0)
 
         # Calculate precision and recall over all predictions
-        precision = cum_tp / (cum_tp + cum_fp + EPS)
-        recall = cum_tp / float(st.num_gt + EPS)
+        den = (cum_tp + cum_fp)
+        precision = torch.where(den > 0, cum_tp / den, den.new_zeros(()).expand_as(den))
+        recall = cum_tp / float(st.num_gt) if st.num_gt > 0 else cum_tp.new_zeros(cum_tp.shape)
         out[thr] = float(APStats.avg_prec(recall, precision))
 
     st.set(out)

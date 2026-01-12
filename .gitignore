@@ -1,20 +1,38 @@
+# Project-specific data & outputs
 VOC/*
-venv
-__pycache__
-2102.09480v1.pdf
-results
-results_val
-.venv
-*.pyc
+datasets/*
+results/
+results_val/
+logs/
+
+# Python virtual environments
+.venv/
+venv/
+env/
+.Python
+
+# Python cache / compiled files
+__pycache__/
+*.py[cod]
 *.pyo
 *.pyd
-.Python
-env/
+
+# Build / distribution artifacts
 build/
-develop-eggs/
 dist/
+develop-eggs/
 eggs/
 .eggs/
 datasets
 burn_infasterrcnn_checkpoints
 logs
+
+# Tests & temporary artifacts
+test/*
+tests/*
+test_*
+*tmp*
+*temp*
+
+# Misc / documents
+2102.09480v1.pdf

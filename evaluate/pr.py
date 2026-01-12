@@ -7,7 +7,8 @@ import torch
 
 from bbox.box_ops import box_iou
 
-EPS = 1e-8
+
+EPS = 1e-6
 
 
 @dataclass
@@ -69,6 +70,8 @@ def collect_matches_single_thr(
             else:
                 all_match.append(0)
 
+    if len(all_scores) == 0:
+        return torch.empty((0,), dtype=torch.float32), all_match
     return torch.cat(all_scores, dim=0), all_match
 
 
@@ -83,15 +86,14 @@ def pr_for_class(
     # Collect matches for the given IoU threshold
     scores, match = collect_matches_single_thr(
         pred_boxes_list, pred_scores_list, tgt_boxes_list,
-        iou_thr=iou_thr, score_thr=score_thr, st=st
-    )
+        iou_thr=iou_thr, score_thr=score_thr, st=st)
 
     if st.num_pred == 0:
         st.set({"precision": 0.0, "recall": 0.0, "f1": 0.0})
         return st
 
     # Cumulate true positives and false positives
-    m = torch.tensor(match, torch.float32, scores.device)
+    m = torch.tensor(match, dtype=torch.float32, device=scores.device)
 
     # Over all predictions
     tp = float(m.sum().item())

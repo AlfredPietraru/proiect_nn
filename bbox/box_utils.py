@@ -11,13 +11,23 @@ def box_area(boxes: torch.Tensor) -> torch.Tensor:
 
 
 def box_iou(boxes1: torch.Tensor, boxes2: torch.Tensor) -> torch.Tensor:
-    area1 = box_area(boxes1)  # (N,)
-    area2 = box_area(boxes2)  # (M,)
+    if boxes1.numel() == 0 or boxes2.numel() == 0:
+        return boxes1.new_zeros((boxes1.size(0), boxes2.size(0)))
 
-    lt = torch.max(boxes1[:, None, :2], boxes2[:, :2])   # (N,M,2)
-    rb = torch.min(boxes1[:, None, 2:], boxes2[:, 2:])   # (N,M,2)
+    b1 = boxes1[:, None, :]  # (N,1,4)
+    b2 = boxes2[None, :, :]  # (1,M,4)
 
-    wh = (rb - lt).clamp(min=0)  # (N,M,2)
-    inter = wh[:, :, 0] * wh[:, :, 1]
-    union = area1[:, None] + area2 - inter
-    return inter / (union + EPS)
+    x1 = torch.maximum(b1[..., 0], b2[..., 0])
+    y1 = torch.maximum(b1[..., 1], b2[..., 1])
+    x2 = torch.minimum(b1[..., 2], b2[..., 2])
+    y2 = torch.minimum(b1[..., 3], b2[..., 3])
+
+    inter_w = (x2 - x1).clamp(min=0)
+    inter_h = (y2 - y1).clamp(min=0)
+    inter = inter_w * inter_h
+
+    area1 = ((b1[..., 2] - b1[..., 0]).clamp(min=0) * (b1[..., 3] - b1[..., 1]).clamp(min=0))
+    area2 = ((b2[..., 2] - b2[..., 0]).clamp(min=0) * (b2[..., 3] - b2[..., 1]).clamp(min=0))
+
+    union = area1 + area2 - inter
+    return inter / union.clamp(min=1e-12)

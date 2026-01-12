@@ -3,13 +3,11 @@ from __future__ import annotations
 import os
 from typing import Dict, List, Optional
 
-import matplotlib
 import matplotlib.pyplot as plt
 import seaborn as sns
 
 from data.visualize.visualize_common import save_figure
 
-matplotlib.use('Agg')
 sns.set_theme(style="whitegrid")
 
 
@@ -44,22 +42,24 @@ class TrainingCurveSupervised:
 
 
 class TrainingCurveSemiSupervised:
-    def __init__(self, metrics_supervised: List[str], metrics_total: List[str]) -> None:
+    def __init__(self, metrics_supervised: List[str], metrics_unsupervised: List[str]) -> None:
         self.metrics_supervised = metrics_supervised
-        self.metrics_total = metrics_total
+        self.metrics_unsupervised = metrics_unsupervised
 
+        # Labeled only
         self.history_sup = {k: [] for k in metrics_supervised}
-        self.history_total = {k: [] for k in metrics_total}
-
+        # Unlabeled + labeled
+        self.history_unsup = {k: [] for k in metrics_unsupervised}
+        # Overall total loss
         self.history_total_loss: List[float] = []
 
     def update_supervised(self, metrics: Dict[str, float]) -> None:
         for k in self.metrics_supervised:
             self.history_sup[k].append(float(metrics.get(k, 0.0)))
 
-    def update_total(self, metrics: Dict[str, float]) -> None:
-        for k in self.metrics_total:
-            self.history_total[k].append(float(metrics.get(k, 0.0)))
+    def update_unsupervised(self, metrics: Dict[str, float]) -> None:
+        for k in self.metrics_unsupervised:
+            self.history_unsup[k].append(float(metrics.get(k, 0.0)))
 
     def update_total_loss(self, total_loss: float) -> None:
         self.history_total_loss.append(float(total_loss))
@@ -81,11 +81,12 @@ class TrainingCurveSemiSupervised:
                         x=epochs[:len(self.history_sup[k])],
                         y=self.history_sup[k], 
                         ax=ax, label=f"{k} (sup)", linewidth=2)
-            for k in self.metrics_total:
-                if self.history_total.get(k):
+            for k in self.metrics_unsupervised:
+                if self.history_unsup.get(k):
                     sns.lineplot(
-                        x=epochs[:len(self.history_total[k])], 
-                        y=self.history_total[k], ax=ax, label=f"{k} (total)", linewidth=2)
+                        x=epochs[:len(self.history_unsup[k])], 
+                        y=self.history_unsup[k], 
+                        ax=ax, label=f"{k} (unsup)", linewidth=2)
 
         ax.set_title("Training Loss Curves")
         ax.set_xlabel("Epoch")
@@ -121,4 +122,3 @@ class TrainingCurveSemiSupervised:
             save_figure(fig, save_path)
         if show:
             plt.show()
-        plt.close(fig)

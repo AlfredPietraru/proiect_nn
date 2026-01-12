@@ -1,13 +1,36 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal, Optional
+from typing import Literal, Mapping
+
+from data.datasets import (
+    ClassInfo, VOC_CLASSES,
+    AUAIR_CLASSES, UAVDT_CLASSES, VISDRONE_CLASSES)
+
 
 DatasetName = Literal["voc", "visdrone", "uavdt", "auair"]
 ArchName = Literal["fasterrcnn", "resnet50_gradcampp", "yolo11n"]
 OptName = Literal["sgd", "adamw", "adam"]
 SchedName = Literal["cosine", "multistep"]
 KDDKind = Literal["weakstrong", "cross_dataset", "feature", "box_match", "combo"]
+
+
+def dataset_classes(dataset: str) -> Mapping[int, ClassInfo]:
+    """
+    Based on the dataset details found online.
+    Each dataset may have varying classes,
+    these are the actual classes for each dataset.
+    """
+    ds = dataset.lower()
+    if ds == "voc":
+        return VOC_CLASSES
+    if ds == "visdrone":
+        return VISDRONE_CLASSES
+    if ds == "uavdt":
+        return UAVDT_CLASSES
+    if ds == "auair":
+        return AUAIR_CLASSES
+    raise ValueError(f"Unknown dataset='{dataset}'")
 
 
 def dataset_num_classes(dataset: str) -> int:
@@ -52,10 +75,10 @@ class DataCfg:
     root: str = "datasets"
     percentage = 0.025
 
-    voc_dir: str = "VOC"
-    visdrone_dir: str = "VisDrone"
-    uavdt_dir: str = "UAVDT"
-    auair_dir: str = "AUAIR"
+    voc_dir: str = "VOCdevkit"
+    visdrone_dir: str = "VisDrone2019-DET"
+    uavdt_dir: str = "uavdt"
+    auair_dir: str = "AU_AIR"
 
     img_size: int = 512
     batch_size: int = 8
@@ -71,14 +94,15 @@ class DataCfg:
     max_objects: int = 300
 
     def sync(self) -> None:
+        self.classes = dataset_classes(self.dataset)
         self.num_classes = int(dataset_num_classes(self.dataset))
-        self.max_objects = 300
+        self.max_objects = int(dataset_max_objects(self.dataset))
 
 
 @dataclass
 class ModelCfg:
     arch: ArchName = "fasterrcnn"
-    num_classes: int = 20
+    num_classes: int = 20   # excluding background
 
     pretrained: bool = True
     freeze_backbone: bool = False
@@ -148,6 +172,7 @@ class SSLTrainCfg:
 @dataclass
 class KDDCfg:
     kind: KDDKind = "weakstrong"
+    teacher_arch: ArchName = "fasterrcnn"
 
     # weights (used by kind="combo"; also safe for single-kind)
     w_cls: float = 1.0
@@ -168,7 +193,7 @@ class KDDCfg:
 
     # Cross-dataset class mapping (teacher class id -> student class id)
     # Only required for kind="cross_dataset"
-    teacher_to_student: Optional[dict[int, int]] = None
+    teacher_to_student: dict[int, int] | None = None
 
 
 @dataclass
@@ -178,7 +203,7 @@ class MetricsCfg:
     class_agnostic: bool = False
     iou_thrs: tuple[float, ...] = (
         0.5, 0.55, 0.6, 0.65, 0.7,
-        0.75, 0.8, 0.85, 0.9, 0.95,
+        0.75, 0.8, 0.85, 0.9, 0.95
     )
 
     def sync(self, data: DataCfg) -> None:
