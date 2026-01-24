@@ -8,10 +8,8 @@ from .dataloaders import (
     get_dataloaders_uavdt,
     get_dataloaders_auair)
 from .datasets import (
-    VOCDataset,
-    UAVDTDataset,
-    VisDroneDataset,
-    AUAIRDataset,
+    VOCDataset, 
+    UAVDTDataset, VisDroneDataset, AUAIRDataset,
     download_all_datasets)
 from .visualize import (
     TrainingCurveSupervised,

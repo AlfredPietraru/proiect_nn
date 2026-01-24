@@ -32,6 +32,7 @@ def train_burn_in_one_epoch(
     data: dict[str, DataLoader], device: torch.device,
     max_iter: int, metric_keys: list[str]
 ) -> dict[str, float]:
+    """Train model for one epoch on burn-in strong data."""
     model.train()
     history = {k: 0.0 for k in metric_keys}
     steps = 0
@@ -65,6 +66,7 @@ def train_burn_in_one_epoch(
 
 
 def collect_labels_from_det_dataset(ds: Dataset, max_samples: int) -> list[int]:
+    """Collect all class labels from a detection dataset."""
     y: list[int] = []
     for i in range(min(len(ds), int(max_samples))):
         item = ds[i]
@@ -84,6 +86,7 @@ def confusion_from_loader(
     model: torch.nn.Module, loader: DataLoader, device: torch.device,
     num_classes: int, max_batches: int, score_thr: float
 ) -> np.ndarray:
+    """Compute confusion matrix from data loader and model."""
     model.eval()
 
     cm = np.zeros((int(num_classes), int(num_classes)), dtype=np.int64)
@@ -139,6 +142,15 @@ def pipeline_burn_in(
     device: torch.device, metric_keys: list[str],
     save_path: str = "images/burn_in"
 ) -> None:
+    """
+    Full burn-in training pipeline.
+    - 1st: setup model, optimizer, scheduler
+    - 2nd: train for N epochs on strong burn-in data
+    - 3rd: at intervals, save checkpoints, visualize weights, grads, activations, plot class distribution, confusion matrix, sample predictions
+    - 4th: save all plots and checkpoints to specified path
+    - 5th: use mean/std from train set for visualization normalization
+    - 6th: limit number of samples for class distribution and confusion matrix for speed
+    """
     model = build_model(cfg=cfg).to(device)
     optimizer = build_optimizer(cfg=cfg, model=model)
     steps_per_epoch = len(data["train_burn_in_strong"])

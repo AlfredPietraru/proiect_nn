@@ -17,6 +17,7 @@ def tsne_embeddings(
     X: np.ndarray, perplexity: float = 30.0,
     n_iter: int = 3000, seed: int = 42
 ) -> np.ndarray:
+    """Compute 2D t-SNE embeddings from high-dimensional data."""
     X = np.asarray(X)
     n = X.ndim
     if n < 2 or perplexity >= X.shape[0] / 3:
@@ -39,6 +40,7 @@ def plot_tsne_labels(
     title: str = "Supervised CNN Repr (t-SNE)\n(train=o, test=x)",
     show: bool = True, save_path: str | None = None
 ) -> tuple[Figure, Axes]:
+    """Plot t-SNE embeddings with labels for supervised training and testing data."""
     sup_train_2d = np.asarray(sup_train_2d)
     sup_test_2d = np.asarray(sup_test_2d)
     sup_train_labels = np.asarray(sup_train_labels).astype(np.int64, copy=False)
@@ -117,6 +119,7 @@ def plot_tsne_transf(
     title_test: str = "Semi-Supervised Repr (Test)",
     show: bool = True, save_path: str | None = None
 ) -> tuple[Figure, np.ndarray]:
+    """Plot t-SNE embeddings for training and testing data after transformation."""
     train_2d = np.asarray(train_2d)
     test_2d = np.asarray(test_2d)
     train_labels = np.asarray(train_labels)

@@ -6,6 +6,7 @@ from .metrics import DetectionStore, IoUMetrics, ClassSelector
 
 
 def stats_for_class(store: DetectionStore, selector: ClassSelector, cls: int, cfg: IoUMetrics) -> tuple[APStats, PRStats]:
+    """Calculate AP and PR statistics for a specific class."""
     pred_boxes_list, pred_scores_list, tgt_boxes_list = [], [], []
 
     for pred_bl, tgt_bl in zip(store.preds, store.tgts):

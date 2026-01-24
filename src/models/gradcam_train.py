@@ -29,18 +29,21 @@ class GradCAMPP(nn.Module):
         self.hook = target_layer.register_forward_hook(self.capture_activations)
 
     def capture_activations(self, module: nn.Module, inputs: tuple[Any, ...], output: Any) -> None:
+        """ Forward hook that captures activations from the target layer."""
         if self.strict_hooks and (not isinstance(output, Tensor) or output.ndim != 4):
             raise ValueError("GradCAMPP target layer must output a 4D NCHW tensor.")
         self.activations = output
 
     @staticmethod
     def normalize_cam(cam: Tensor) -> Tensor:
+        """Normalize CAM to [0, 1] per-sample."""
         cam = cam - cam.amin(dim=(-2, -1), keepdim=True)
         cam = cam / (cam.amax(dim=(-2, -1), keepdim=True) + EPS)
         return cam
 
     @staticmethod
     def bbox_from_cam(cam01: Tensor, thr: float) -> tuple[Tensor, Tensor]:
+        """Extract single xyxy box from CAM thresholding."""
         h, w = cam01.shape
         mask = cam01 >= float(thr)
 
@@ -61,12 +64,14 @@ class GradCAMPP(nn.Module):
 
     def forward(
         self, x: Tensor, class_idx: Tensor | None = None,
-        topk: int = 1, thr: float = 0.35, use_gradients: bool = True, detach_outputs: bool = True
+        topk: int = 1, thr: float = 0.35, 
+        use_gradients: bool = True, detach_outputs: bool = True
     ) -> tuple[
         Tensor,
         Tensor | None, Tensor | None,
         Tensor | None, Tensor | None
     ]:
+        """Compute Grad-CAM++ and return CAM-derived boxes."""
         if x.ndim != 4:
             raise ValueError("Input must be NCHW.")
         if not use_gradients:
@@ -124,4 +129,5 @@ class GradCAMPP(nn.Module):
         return logits, boxes, labels, scores, valid
 
     def remove_hooks(self) -> None:
+        """Remove the registered forward hook."""
         self.hook.remove()

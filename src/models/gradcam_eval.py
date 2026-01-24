@@ -17,6 +17,7 @@ def evaluate_cam_bboxes(
     images: Tensor, gt_boxes: Tensor, gt_labels: Tensor,
     iou_thr: float = 0.5, cam_thr: float = 0.35, top_k: int = 1
 ) -> dict[str, float]:
+    """Evaluate CAM bounding boxes against ground truth boxes."""
     n = int(images.shape[0])
 
     logits = model(images)

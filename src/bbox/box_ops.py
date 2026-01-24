@@ -27,6 +27,7 @@ def encode_boxes(
     gt_boxes: Tensor,         # (N,4)
     weights: tuple[float, float, float, float] = (1.0, 1.0, 1.0, 1.0)
 ) -> Tensor:
+    """Encode ground-truth boxes with respect to anchors."""
     wx, wy, ww, wh = weights
 
     ax = (anchors[:, 0] + anchors[:, 2]) * 0.5
@@ -52,6 +53,7 @@ def decode_boxes(
     deltas: Tensor,           # (N,4)
     weights: tuple[float, float, float, float] = (1.0, 1.0, 1.0, 1.0)
 ) -> Tensor:
+    """Decode box regression deltas to boxes."""
     wx, wy, ww, wh = weights
 
     ax = (anchors[:, 0] + anchors[:, 2]) * 0.5
@@ -81,6 +83,7 @@ def anchors_to_boxlist(
     scores: Tensor, labels: Tensor,
     image_size: tuple[int, int] | None = None
 ) -> BoxList:
+    """Convert anchors and associated scores and labels to a BoxList."""
     if torch.is_tensor(anchors):
         if image_size is None:
             raise ValueError("Image size is required when boxes is a tensor")
@@ -94,6 +97,7 @@ def anchors_to_boxlist(
 
 
 def filter_by_image_labels(boxlist: BoxList, image_labels: Tensor) -> BoxList:
+    """Filter BoxList to keep only boxes whose labels are present in image_labels."""
     present = torch.nonzero(image_labels > 0).squeeze(1)
     mask = torch.isin(boxlist.labels, present.to(boxlist.labels.device))
     return BoxList(
@@ -106,6 +110,7 @@ def match_anchors_to_gt(
     high_thresh: float = 0.95, low_thresh: float = 0.05,
     allow_low_quality_matches: bool = True
 ) -> tuple[Tensor, Tensor, Tensor]:
+    """Match anchors to ground-truth boxes."""
     if gt.boxes.numel() == 0:
         raise ValueError("No ground-truth boxes provided for matching.")
     if gt.boxes.ndim != 2 or gt.boxes.size(1) != 4:
@@ -136,6 +141,7 @@ def match_anchors_to_gt(
 
 
 def aggregate_boxes(boxlist: BoxList, iou_merge_thresh: float = 0.5, min_group_size: int = 1) -> BoxList:
+    """Aggregate boxes in BoxList based on IoU and scores."""
     boxes = boxlist.boxes
     labels = boxlist.labels
     scores = boxlist.scores

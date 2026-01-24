@@ -15,10 +15,12 @@ class APStats:
     values: dict[float, float] | None = None  # avg precision per IoU threshold
 
     def set(self, values: dict[float, float]) -> None:
+        """Set the average precision values for different IoU thresholds."""
         self.values = values
 
     @staticmethod
     def avg_prec(recall: torch.Tensor, precision: torch.Tensor) -> float:
+        """Calculate average precision given recall and precision tensors."""
         if recall.numel() == 0:
             return 0.0
 
@@ -47,11 +49,10 @@ def collect_matches_multi_thr(
     iou_thrs: tuple[float, ...], score_thr: float,
     st: APStats
 ) -> tuple[torch.Tensor, dict[float, list[int]]]:
+    """Collect matches between predicted and target boxes for multiple IoU thresholds."""
     all_scores: list[torch.Tensor] = []
     all_match: dict[float, list[int]] = {t: [] for t in iou_thrs}
-    for pred_boxes, pred_scores, tgt_boxes in zip(
-        pred_boxes_list, pred_scores_list, tgt_boxes_list
-    ):
+    for pred_boxes, pred_scores, tgt_boxes in zip(pred_boxes_list, pred_scores_list, tgt_boxes_list):
         st.num_gt += int(tgt_boxes.size(0))
 
         if pred_boxes.numel() == 0:
@@ -105,6 +106,7 @@ def ap_for_class(
     tgt_boxes_list: list[torch.Tensor],
     iou_thrs: tuple[float, ...], score_thr: float
 ) -> APStats:
+    """Calculate average precision for a specific class over multiple IoU thresholds."""
     st = APStats(values=None)
 
     # Collect matches for all IoU thresholds at once

@@ -25,6 +25,7 @@ class EarlyStopping:
         self.best_model_state: dict[str, Any] | None = None
 
     def is_improvement(self, value: float) -> bool:
+        """Check if the new value is an improvement over the best value."""
         if self.best_value is None:
             return True
 
@@ -34,6 +35,7 @@ class EarlyStopping:
         return value > (self.best_value + self.min_delta)
 
     def __call__(self, value: float, model: Any, epoch: int | None) -> None:
+        """Check if training should be stopped early based on the provided metric value."""
         if value is None or (isinstance(value, float) and (math.isnan(value) or math.isinf(value))):
             if self.verbose:
                 logger.info("Early stopping received NaN/Inf metric, stopping training.")
@@ -71,6 +73,7 @@ class EarlyStopping:
                 logger.info("Early stopping stopped training")
 
     def load_best_model(self, model: nn.Module) -> None:
+        """Load the best model state into the given model."""
         if self.best_model_state is None:
             return
         try:

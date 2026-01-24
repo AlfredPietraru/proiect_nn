@@ -53,11 +53,13 @@ class ClassProjector:
         self._s_idx = Tensor(s_idx, dtype=torch.long)
 
     def to(self, device: torch.device) -> ClassProjector:
+        """Move internal tensors to device."""
         self._t_idx = self._t_idx.to(device)
         self._s_idx = self._s_idx.to(device)
         return self
 
     def project_probs(self, p_t: Tensor) -> Tensor:
+        """Project teacher probabilities to student class space."""
         out = p_t.new_zeros((*p_t.shape[:-1], self.ks))
         if self._t_idx.numel() == 0:
             return out
@@ -74,6 +76,7 @@ class WeakStrongKDD(nn.Module):
         self.gamma = gamma
 
     def forward(self, teacher_logits_w: Tensor, student_logits_s: Tensor, weight: Tensor) -> tuple[Tensor, Tensor, Tensor]:
+        """Compute the Kullback-Leibler divergence loss between teacher and student logits with temperature scaling and confidence weighting."""
         p_t = softmax_temp(teacher_logits_w, self.tau)
         p_s = softmax_temp(student_logits_s, self.tau)
 
@@ -99,6 +102,7 @@ class CrossDatasetKDD(nn.Module):
         self.gamma = gamma
 
     def forward(self, teacher_logits_w: Tensor, student_logits_s: Tensor, weight: Tensor) -> tuple[Tensor, Tensor, Tensor]:
+        """Compute the Kullback-Leibler divergence loss between teacher and student logits with class projection, temperature scaling, and confidence weighting."""
         p_t = softmax_temp(teacher_logits_w, self.tau)
         p_t = self.projector.project_probs(p_t)
         p_t = smooth_distribution(p_t)
@@ -129,6 +133,7 @@ class FeatureKDD(nn.Module):
         self.beta = float(beta)
 
     def forward(self, f_t: Tensor, f_s: Tensor) -> Tensor:
+        """Compute feature-based knowledge distillation loss between teacher and student features."""
         # f_t, f_s: (N,C,H,W) or (N,C)
         gs = self.proj(f_s)
         ft = f_t
@@ -150,6 +155,7 @@ class BoxMatchKDD(nn.Module):
         self.box_l1 = box_l1
 
     def forward(self, t_boxes: Tensor, t_logits: Tensor, t_valid: Tensor, s_boxes: Tensor, s_logits: Tensor, s_valid: Tensor) -> Tensor:
+        """Compute box-matching knowledge distillation loss between teacher and student boxes and logits."""
         N = t_boxes.shape[0]
         loss_sum = t_boxes.new_zeros(())
         denom = 0

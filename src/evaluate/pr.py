@@ -23,6 +23,7 @@ def collect_matches_single_thr(
     tgt_boxes_list: list[torch.Tensor],
     iou_thr: float, score_thr: float, st: PRStats
 ) -> tuple[torch.Tensor, list[int]]:
+    """Collect matches between predicted and target boxes for a single IoU threshold."""
     all_scores: list[torch.Tensor] = []
     all_match: list[int] = []
 
@@ -74,6 +75,7 @@ def pr_for_class(
     tgt_boxes_list: list[torch.Tensor],
     score_thr: float, iou_thr: float = 0.5
 ) -> PRStats:
+    """Calculate precision, recall, and F1 score for a specific class."""
     st = PRStats(values=None)
 
     # Collect matches for the given IoU threshold

@@ -38,6 +38,7 @@ class ResNet50GradCamPP(nn.Module):
         self, x: Tensor, targets: list[dict[str, Tensor]] | dict[str, Tensor] | None = None,
         topk: int = 1, thr: float = 0.35, detach_outputs: bool = True
     ) -> tuple[list[dict[str, Tensor]], dict[str, Tensor]]:
+        """Forward pass for training and inference."""
         if isinstance(x, (list, tuple)):
             x = torch.stack(list(x), dim=0)
 
@@ -78,6 +79,7 @@ class ResNet50GradCamPP(nn.Module):
 
     @torch.no_grad()
     def predict_class_logits(self, x: Tensor) -> Tensor:
+        """Predict class logits for input tensor."""
         if isinstance(x, (list, tuple)):
             x = torch.stack(list(x), dim=0)
         self.eval()
@@ -85,6 +87,7 @@ class ResNet50GradCamPP(nn.Module):
 
     @torch.no_grad()
     def predict_boxes_logits(self, images: Tensor | list[Tensor], cam_thr: float = 0.35) -> tuple[Tensor, Tensor, Tensor]:
+        """Get packed boxes + logits-like tensor for BoxMatchKDD."""
         x = torch.stack(images, 0) if isinstance(images, list) else images
         logits = self.backbone(x)
         class_idx = torch.argmax(logits, dim=1)

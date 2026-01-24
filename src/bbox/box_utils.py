@@ -6,11 +6,13 @@ from torch import Tensor
 EPS: float = 1e-6
 
 def box_area(boxes: Tensor) -> Tensor:
+    """Compute the area of a set of boxes, each defined by (x1, y1, x2, y2)."""
     wh = (boxes[:, 2:] - boxes[:, :2]).clamp(min=0)
     return wh[:, 0] * wh[:, 1]
 
 
 def box_iou(boxes1: Tensor, boxes2: Tensor) -> Tensor:
+    """Compute the IoU between two sets of boxes."""
     if boxes1.numel() == 0 or boxes2.numel() == 0:
         return boxes1.new_zeros((boxes1.size(0), boxes2.size(0)))
 

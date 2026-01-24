@@ -13,12 +13,14 @@ from utils.logger import Logger
 
 
 def collate_labeled(batch):
+    """Collate function for labeled data batches."""
     images = [item[0] for item in batch]
     targets = [item[1] for item in batch]
     return images, targets
 
 
 def collate_unlabeled(batch):
+    """Collate function for unlabeled data batches with weak and strong augmentations."""
     weak_images = [b[0] for b in batch]
     strong_images = [b[1] for b in batch]
     return weak_images, strong_images
@@ -29,6 +31,7 @@ def build_ssl_loaders(
     batch_size: int, num_workers: int, pin_memory: bool,
     weak_augmentations: A.Compose, strong_augmentations: A.Compose
 ) -> Dict[str, DataLoader]:
+    """Build SSL data loaders for labeled, unlabeled, and test datasets."""
     ds_train_unlabeled = UnlabeledDataset(ds_train_unlabeled, weak_augmentations, strong_augmentations)
     loader_train_labeled = DataLoader(
         ds_train_labeled, batch_size,
@@ -46,12 +49,12 @@ def build_ssl_loaders(
 
 
 def get_dataloaders_voc(
-    root: str,
-    details: Logger,
+    root: str, details: Logger,
     size: Tuple[int, int], batch_size: int,
     num_workers: int, pin_memory: bool,
     download: bool = True, percentage: float = 1.0
 ) -> Dict[str, DataLoader]:
+    """Get data loaders for VOC dataset with SSL setup."""
     tfms = build_detection_transforms(size)
     weak_augmentations = tfms["weak"]
     strong_augmentations = tfms["strong"]
@@ -69,12 +72,12 @@ def get_dataloaders_voc(
 
 
 def get_dataloaders_uavdt(
-    root: str,
-    details: Logger,
+    root: str, details: Logger,
     size: Tuple[int, int], batch_size: int,
     num_workers: int, pin_memory: bool, 
     download: bool = True, percentage: float = 1.0
 ) -> Dict[str, DataLoader]:
+    """Get data loaders for UAVDT dataset with SSL setup."""
     tfms = build_detection_transforms(size)
     weak_augmentations = tfms["weak"]
     strong_augmentations = tfms["strong"]
@@ -91,12 +94,12 @@ def get_dataloaders_uavdt(
 
 
 def get_dataloaders_auair(
-    root: str,
-    details: Logger,
+    root: str, details: Logger,
     size: Tuple[int, int], batch_size: int,
     num_workers: int, pin_memory: bool,
     download: bool = True, percentage: float = 1.0
 ) -> Dict[str, DataLoader]:
+    """Get data loaders for AU-AIR dataset with SSL setup."""
     tfms = build_detection_transforms(size)
     weak_augmentations = tfms["weak"]
     strong_augmentations = tfms["strong"]
@@ -113,12 +116,12 @@ def get_dataloaders_auair(
 
 
 def get_dataloaders_visdrone(
-    root: str,
-    details: Logger,
+    root: str, details: Logger,
     size: Tuple[int, int], batch_size: int,
     num_workers: int, pin_memory: bool,
     download: bool = True, percentage: float = 1.0
 ) -> Dict[str, DataLoader]:
+    """Get data loaders for VisDrone dataset with SSL setup."""
     tfms = build_detection_transforms(size)
     weak_augmentations = tfms["weak"]
     strong_augmentations = tfms["strong"]
@@ -135,6 +138,7 @@ def get_dataloaders_visdrone(
 
 
 def build_dataloaders(cfg: ExperimentConfig) -> Dict[str, DataLoader]:
+    """Build data loaders based on the experiment configuration."""
     size = (cfg.data.img_size, cfg.data.img_size)
     details = Logger("Dataloaders")
 

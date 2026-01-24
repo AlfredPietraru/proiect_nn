@@ -109,6 +109,10 @@ def plot_cross_arch_agreement(
     figsize: tuple[int, int] = (18, 6), 
     show: bool = True, save_path: str | None = None
 ) -> tuple[Figure, np.ndarray]:
+    """
+    Plot cross-architecture agreement heatmaps.
+    All heatmaps share the same teacher architecture.
+    """
     fig, axes = plt.subplots(1, len(agreement_by_arch), figsize=figsize)
     axes = np.atleast_1d(axes)
 

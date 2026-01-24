@@ -40,9 +40,11 @@ class EMA:
         self.alpha_max = float(alpha_max)
 
     def model(self) -> nn.Module:
+        """Get the EMA model."""
         return self.ema
 
     def resolve_alpha(self, conf_mean: float | None) -> float:
+        """Resolve the alpha value for EMA update based on confidence mean."""
         if not self.adaptive or conf_mean is None:
             return self.decay
         c = float(max(0.0, min(1.0, conf_mean)))
@@ -50,6 +52,7 @@ class EMA:
 
     @torch.no_grad()
     def update(self, student_model: nn.Module, conf_mean: float | None) -> tuple[int, int, int]:
+        """Update the EMA model parameters using the student model parameters."""
         student = unwrap_model(student_model)
 
         ema_sd = self.ema.state_dict()
@@ -83,12 +86,14 @@ class EMA:
         return updated, missing, shape_mismatch
 
     def state_dict(self) -> dict[str, Any]:
+        """Return the state dictionary for the EMA model and its parameters."""
         return {
             "decay": self.decay, "adaptive": self.adaptive,
             "alpha_min": self.alpha_min, "alpha_max": self.alpha_max,
             "ema": self.ema.state_dict()}
 
     def load_state_dict(self, sd: dict[str, Any]) -> None:
+        """Load the state dictionary for the EMA model and its parameters."""
         self.decay = float(sd.get("decay", self.decay))
         self.adaptive = bool(sd.get("adaptive", self.adaptive))
         self.alpha_min = float(sd.get("alpha_min", self.alpha_min))
@@ -98,6 +103,7 @@ class EMA:
     @staticmethod
     @torch.no_grad()
     def copy_matching(dst: nn.Module, src: nn.Module) -> None:
+        """Copy matching parameters and buffers from src to dst model."""
         dst_sd = dst.state_dict()
         src_sd = src.state_dict()
         for k, v in dst_sd.items():

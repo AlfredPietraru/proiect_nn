@@ -24,6 +24,7 @@ class PointList:
 
 
 def encode_ltrb(points: Tensor, gt_boxes: Tensor) -> Tensor:
+    """Encode ground-truth boxes with respect to points."""
     cx, cy = points[:, 0], points[:, 1]
     left = cx - gt_boxes[:, 0]
     top = cy - gt_boxes[:, 1]
@@ -33,6 +34,7 @@ def encode_ltrb(points: Tensor, gt_boxes: Tensor) -> Tensor:
 
 
 def decode_ltrb(points: Tensor, ltrb: Tensor) -> Tensor:
+    """Decode ltrb deltas to boxes."""
     cx, cy = points[:, 0], points[:, 1]
     x1 = cx - ltrb[:, 0]
     y1 = cy - ltrb[:, 1]
@@ -46,6 +48,7 @@ def points_to_pointlist(
     scores: Tensor, labels: Tensor,
     image_size: tuple[int, int] | None = None
 ) -> PointList:
+    """Convert points and associated scores and labels to a PointList."""
     if torch.is_tensor(points):
         if image_size is None:
             raise ValueError("Image size must be provided when points is a tensor.")
@@ -59,6 +62,7 @@ def points_to_pointlist(
 
 
 def filter_points_by_image_labels(pointlist: PointList, image_labels: Tensor) -> PointList:
+    """Filter points based on image-level labels."""
     present = torch.nonzero(image_labels > 0).squeeze(1)
     mask = torch.isin(pointlist.labels, present.to(pointlist.labels.device))
     return PointList(
@@ -70,6 +74,7 @@ def match_points_to_gt(
     points: Tensor, gt: PointList,  # (Np,2), gt with boxes (Ng,4)
     allow_low_quality_matches: bool = True
 ) -> tuple[Tensor, Tensor, Tensor]:
+    """Match points to ground-truth boxes."""
     if gt.points.numel() == 0:
         raise ValueError("No ground-truth boxes provided for matching.")
     if gt.points.ndim != 2 or gt.points.size(1) != 4:
@@ -128,6 +133,7 @@ def aggregate_points(
     dist_thresh: float = 5.0,  # Distance threshold to consider points for merging
     min_group_size: int = 1    # Minimum number of points in a group to perform merging
 ) -> PointList:
+    """Aggregate points in PointList based on distance and scores."""
     pts = pointlist.points
     labels = pointlist.labels
     scores = pointlist.scores

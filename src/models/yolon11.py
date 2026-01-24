@@ -50,6 +50,7 @@ class YOLO11Detector(nn.Module):
 
     @staticmethod
     def xyxy_to_xywh_norm(boxes_xyxy: Tensor, h: int, w: int) -> Tensor:
+        """Convert xyxy pixel boxes to normalized xywh format."""
         x1, y1, x2, y2 = boxes_xyxy.unbind(dim=1)
         bw = (x2 - x1).clamp(min=1.0)
         bh = (y2 - y1).clamp(min=1.0)
@@ -58,6 +59,7 @@ class YOLO11Detector(nn.Module):
         return torch.stack([cx / float(w), cy / float(h), bw / float(w), bh / float(h)], dim=1).clamp(0.0, 1.0)
 
     def build_ultra_batch(self, x: Tensor, targets: list[dict[str, Tensor]]) -> dict[str, Tensor]:
+        """Build the Ultralytics batch dict used by model.loss(...)"""
         n, _, h, w = x.shape
         device = x.device
 
@@ -91,6 +93,7 @@ class YOLO11Detector(nn.Module):
             "cls": torch.cat(cls_all, dim=0), "bboxes": torch.cat(bboxes_all, dim=0)}
 
     def forward(self, x: Tensor, targets: list[dict[str, Tensor]] | None) -> tuple[list[dict[str, Tensor]], dict[str, Tensor]]:
+        """Forward pass for training and inference."""
         if isinstance(x, (list, tuple)):
             x = torch.stack(list(x), dim=0)
         if x.device != self.device:
@@ -131,6 +134,7 @@ class YOLO11Detector(nn.Module):
 
     @torch.inference_mode()
     def predict_packed(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor, Tensor]:
+        """Get packed boxes + logits-like tensor for BoxMatchKDD."""
         if x.device != self.device:
             x = x.to(self.device, non_blocking=True)
 
@@ -168,32 +172,8 @@ class YOLO11Detector(nn.Module):
 
         return boxes_b, labels_b, scores_b, valid_b
 
-    @torch.no_grad()
-    def predict_class_logits(self, x: Tensor) -> Tensor:
-        if isinstance(x, (list, tuple)):
-            x = torch.stack(list(x), dim=0)
-        if x.device != self.device:
-            x = x.to(self.device, non_blocking=True)
-
-        self.eval()
-        _, labels_b, scores_b, valid_b = self.predict_packed(x)
-
-        n, c = x.size(0), int(self.num_classes)
-        agg = x.new_zeros((n, c), torch.float32)
-
-        for i in range(n):
-            v = valid_b[i]
-            if not bool(v.any()):
-                continue
-
-            labs = labels_b[i][v].clamp(0, c - 1)
-            sc = scores_b[i][v].clamp(0.0, 1.0)
-            for j in range(labs.numel()):
-                agg[i, int(labs[j].item())] += sc[j]
-
-        return torch.log(agg + EPS)
-
     def predict_boxes_logits(self, images: Tensor | list[Tensor]) -> tuple[Tensor, Tensor, Tensor]:
+        """(N,M,4), (N,M,C), (N,M) for BoxMatchKDD"""
         x = torch.stack(images, 0) if isinstance(images, list) else images
         if x.device != self.device:
             x = x.to(self.device, non_blocking=True)
@@ -216,6 +196,32 @@ class YOLO11Detector(nn.Module):
             logits_b[i, idx, labs] = torch.log(sc + EPS)
 
         return boxes_b, logits_b, valid_b
+
+    @torch.no_grad()
+    def predict_class_logits(self, x: Tensor) -> Tensor:
+        """Logits-like (N,C) aggregation for KDD (from detection confidences)."""
+        if isinstance(x, (list, tuple)):
+            x = torch.stack(list(x), dim=0)
+        if x.device != self.device:
+            x = x.to(self.device, non_blocking=True)
+
+        self.eval()
+        _, labels_b, scores_b, valid_b = self.predict_packed(x)
+
+        n, c = x.size(0), int(self.num_classes)
+        agg = x.new_zeros((n, c), torch.float32)
+
+        for i in range(n):
+            v = valid_b[i]
+            if not bool(v.any()):
+                continue
+
+            labs = labels_b[i][v].clamp(0, c - 1)
+            sc = scores_b[i][v].clamp(0.0, 1.0)
+            for j in range(labs.numel()):
+                agg[i, int(labs[j].item())] += sc[j]
+
+        return torch.log(agg + EPS)
 
 
 def get_model_yolo11(cfg: ExperimentConfig) -> nn.Module:

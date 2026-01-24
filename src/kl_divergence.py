@@ -32,6 +32,14 @@ def softmax_mean(logits: torch.Tensor) -> np.ndarray:
 
 
 def init_kdd(cfg: ExperimentConfig, device: torch.device):
+    """
+    Initialize KDD modules based on configuration.
+    - Combo: all three KDDs
+    - WeakStrong: only classification KDD
+    - CrossDataset: only classification KDD with class projection
+    - Feature: only feature KDD
+    - BoxMatch: only box matching KDD
+    """
     kind = cfg.kdd.kind
     w_cls, w_feat, w_box = float(cfg.kdd.w_cls), float(cfg.kdd.w_feat), float(cfg.kdd.w_box)
 
@@ -72,6 +80,10 @@ def train_kdd_one_epoch(
     metric_keys: list[str], kind: str, weights: tuple[float, float, float],
     kdd_cls: nn.Module | None, kdd_feat: nn.Module | None, kdd_box: nn.Module | None
 ) -> dict[str, float]:
+    """
+    Train student model for one epoch using KDD with the given teacher.
+    Returns training history dictionary.
+    """
     teacher.eval()
     student.train()
 
@@ -155,6 +167,14 @@ def pipeline_kdd(
     teacher_ckpt: str, student_ckpt: str,
     metric_keys: list[str], top_k: int
 ) -> None:
+    """
+    Full KDD training pipeline.
+    - 1st: initialize teacher and student models from checkpoints
+    - 2nd: setup optimizer and scheduler for student
+    - 3rd: train for N epochs on weak + strong data
+    - 4th: at intervals, save checkpoints, visualize weights, grads, activations, plot KL divergence and agreement matrices
+    - 5th: save all plots and checkpoints to specified paths
+    """
     teacher = build_model(cfg=cfg).to(device)
     student = build_model(cfg=cfg).to(device)
 

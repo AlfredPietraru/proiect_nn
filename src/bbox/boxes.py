@@ -58,6 +58,7 @@ class AnchorGenerator(nn.Module):
 
     @staticmethod
     def clip_boxes_to_image(boxes: Tensor, image_size: tuple[int, int]) -> Tensor:
+        """Clip boxes to image boundaries."""
         H, W = image_size
         x1 = boxes[:, 0].clamp(0, W)
         y1 = boxes[:, 1].clamp(0, H)
@@ -67,16 +68,20 @@ class AnchorGenerator(nn.Module):
 
     @staticmethod
     def remove_empty_boxes(boxes: Tensor) -> Tensor:
+        """Remove boxes with non-positive width or height."""
         keep = (boxes[:, 2] - boxes[:, 0] > EPS) & (boxes[:, 3] - boxes[:, 1] > EPS)
         return boxes[keep]
 
     def num_anchors_per_location(self) -> list[int]:
+        """Return the number of anchors per spatial location for each feature level."""
         return [self.get_base_anchor(i).shape[0] for i in range(self.num_levels)]
 
     def get_base_anchor(self, level: int) -> Tensor:
+        """Get the base anchors for a specific feature level."""
         return getattr(self, f"base_anchors_l{level}")
 
     def generate_base_anchors(self) -> list[Tensor]:
+        """Generate base anchors for all feature levels."""
         base_anchors: list[Tensor] = []
         for sizes_per_level, ratios_per_level in zip(self.sizes, self.aspect_ratios):
             anchors = []
@@ -90,6 +95,7 @@ class AnchorGenerator(nn.Module):
         return base_anchors
 
     def get_base_anchors(self, device: torch.device,  dtype: torch.dtype) -> list[Tensor]:
+        """Get base anchors for all feature levels on a specific device and dtype."""
         key = (device, dtype)
         cached = self.base_cache.get(key)
         if cached is not None:
@@ -109,6 +115,7 @@ class AnchorGenerator(nn.Module):
         feature_shapes: list[tuple[int, int]],
         device: torch.device, dtype: torch.dtype
     ) -> list[Tensor]:
+        """Generate anchors for all feature levels given their spatial shapes."""
         if len(feature_shapes) != self.num_levels:
             raise ValueError("Feature shapes length must match number of levels in a YOLO model")
 
@@ -137,6 +144,7 @@ class AnchorGenerator(nn.Module):
         device: torch.device | None = None,
         dtype: torch.dtype | None = None
     ) -> list[list[Tensor]] | list[list[AnchorBoxes]]:
+        """Generate anchors for a batch of images given feature shapes."""
         if device is None:
             device = self.get_base_anchor(0).device
         if dtype is None:

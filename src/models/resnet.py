@@ -29,6 +29,7 @@ class ResNet50Backbone(nn.Module):
         self.target_layer = self.resolve_target_layer(target)
 
     def resolve_target_layer(self, spec: str) -> nn.Module:
+        """Resolve target layer from specification string."""
         if spec == "layer4[-1]":
             return self.model.layer4[-1]
         if spec == "layer4[-1].conv3":

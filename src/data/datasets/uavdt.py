@@ -40,7 +40,7 @@ def find_uavdt_pairs(root: Path, split: str, percentage: float = 1.0) -> tuple[l
     return images, annots
 
 
-def parse_uavdt_txt(anns: Path) -> Dict[str, List]:
+def parse_uavdt_txt(anns: Path) -> dict[str, list]:
     """Parse UAVDT annotation from a text file."""
     boxes, labels = [], []
 
@@ -85,7 +85,7 @@ class UAVDTDataset(Dataset):
         self,
         details: Logger,
         root: str, split: str = "train",
-        transform: Optional[A.Compose] = None,
+        transform: A.Compose | None = None,
         download: bool = True, percentage: float = 1.0
     ) -> None:
         assert split in {"train", "val", "test"}
@@ -110,9 +110,11 @@ class UAVDTDataset(Dataset):
                 f"labels={list(self.class_to_idx.keys())}, from root='{self.root}'")
 
     def __len__(self) -> int:
+        """Return the number of images in the dataset."""
         return len(self.images)
 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+        """Get an image and its target annotations (boxes and labels)."""
         img_path = self.images[idx]
         ann_path = self.annotations[idx]
 

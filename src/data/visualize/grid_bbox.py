@@ -32,11 +32,9 @@ def legend_handles(classes: dict[int, ClassInfo], used: set[int]) -> list[Patch]
 
 def draw_boxes_on_ax(
     ax: Axes, H: int, W: int,
-    boxes: Any,
-    labels: Any | None,
-    scores: Any | None,
+    boxes: Any, labels: Any | None, scores: Any | None,
     classes: dict[int, ClassInfo] | None = None,
-    conf_thr: float = 0.0,
+    conf_thr: float = 0.0
 ) -> set[int]:
     """Draw (xyxy) boxes on an existing axis. Returns the set of used class IDs."""
     boxes_np = to_numpy_boxes_xyxy(boxes)
@@ -131,6 +129,7 @@ def draw_bbox(
 
 
 def set_status_border(ax: Axes, ok: bool | None) -> str:
+    """Set the border color of an axis based on prediction status."""
     if ok is None:
         return "black"
     color = "green" if bool(ok) else "red"
@@ -141,22 +140,17 @@ def set_status_border(ax: Axes, ok: bool | None) -> str:
 
 
 def detect_grid(
-    images: torch.Tensor,
-    boxes: list[BoxList],
-    labels: list[Any] | None,
-    scores: list[Any] | None,
-    classes: dict[int, ClassInfo] | None,
-    mean: list[float] | None,
-    std: list[float] | None,
-    pred_status: list[bool] | None,
-    titles: list[str] | str | None, 
-    conf_thr: float = 0.0,
-    grid_title: str = "Detection Grid",
-    cols: int = 4,
-    figsize_per_cell: tuple[float, float] = (3.3, 3.3),
-    show: bool = True,
-    save_path: str | None = None,
+    images: torch.Tensor, classes: dict[int, ClassInfo] | None,
+    boxes: list[BoxList], labels: list[Any] | None, scores: list[Any] | None,
+    mean: list[float] | None, std: list[float] | None, pred_status: list[bool] | None,
+    titles: list[str] | str | None,  conf_thr: float = 0.0, grid_title: str = "Detection Grid",
+    cols: int = 4, figsize_per_cell: tuple[float, float] = (3.3, 3.3),
+    show: bool = True, save_path: str | None = None
 ) -> tuple[Figure, np.ndarray]:
+    """
+    Visualize a grid of detection results with bounding boxes.
+    Bounding boxes are drawn on each image in the batch.
+    """
     B = int(images.size(0))
     if B == 0:
         raise ValueError("Empty batch: images tensor has zero length.")

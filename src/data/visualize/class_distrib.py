@@ -35,10 +35,7 @@ def sparse_xticks(num_classes: int, max_xticks: int) -> np.ndarray:
     return np.arange(0, num_classes, step)
 
 
-def build_tick_labels(
-    num_classes: int,
-    class_names: list[str] | None = None
-) -> list[str]:
+def build_tick_labels(num_classes: int, class_names: list[str] | None = None) -> list[str]:
     """
     Build x-tick labels for plotting.
 

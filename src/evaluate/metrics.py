@@ -13,6 +13,7 @@ def stats_for_class(
     selector: ClassSelector,
     cls: int, cfg: IoUMetrics
 ) -> tuple[APStats, PRStats]:
+    """Calculate AP and PR statistics for a specific class."""
     pred_boxes_list, pred_scores_list, tgt_boxes_list = [], [], []
 
     for pred_bl, tgt_bl in zip(store.preds, store.tgts):
@@ -76,6 +77,7 @@ class ClassSelector:
         return 1 if self.cfg.class_agnostic else self.cfg.num_classes
 
     def select(self, pred_bl: BoxList, tgt_bl: BoxList, cls: int) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Select boxes and scores for a specific class or all classes if class-agnostic."""
         if self.cfg.class_agnostic:
             pred_mask = torch.ones_like(pred_bl.labels, dtype=torch.bool)
             tgt_mask = torch.ones_like(tgt_bl.labels, dtype=torch.bool)
@@ -102,14 +104,17 @@ class DetectionMetrics:
         self.cache_metrics: tuple[dict[int, APStats], dict[int, PRStats]] | None = None
 
     def reset(self) -> None:
+        """Reset the internal store and cached metrics."""
         self.store.reset()
         self.cache_metrics = None
 
     def update(self, preds: list[BoxList], targets: list[BoxList]) -> None:
+        """Update the store with new predictions and targets."""
         self.store.update(preds, targets)
         self.cache_metrics = None
 
     def core(self) -> tuple[dict[int, APStats], dict[int, PRStats]]:
+        """Compute AP and PR statistics per class, with caching."""
         if self.cache_metrics is not None:
             return self.cache_metrics
 
@@ -126,6 +131,7 @@ class DetectionMetrics:
         return self.cache_metrics
 
     def compute(self) -> dict[str, float]:
+        """Compute overall detection metrics: mAP, precision, recall, F1, and counts."""
         ap_per_class, pr_per_class = self.core()
         num_classes = self.selector.num_classes()
         thrs = self.cfg.iou_thrs

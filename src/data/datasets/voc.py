@@ -201,9 +201,11 @@ class VOCDataset(Dataset):
                 f"labels={list(self.class_to_idx.keys())}, from root='{self.root}'")
 
     def __len__(self) -> int:
+        """Return the number of images in the dataset."""
         return len(self.images)
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, dict]:
+        """Get an image and its target annotations (boxes and labels)."""
         img_path = self.images[idx]
         ann_path = self.annotations[idx]
 

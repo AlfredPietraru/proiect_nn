@@ -20,6 +20,7 @@ class UnlabeledDataset(Dataset):
         self.strong_tf = strong_transform
 
     def __len__(self) -> int:
+        """Return the number of images in the dataset."""
         return len(self.base)
 
     def __getitem__(self, idx: int) -> Tuple[
@@ -28,6 +29,7 @@ class UnlabeledDataset(Dataset):
         Dict[str, Tuple[float, float, float, float]],  # weak target: boxes + labels
         Dict[str, int]  # strong target: boxes + labels
     ]:
+        """Get weakly and strongly augmented images and their targets."""
         image, target = self.base[idx]
 
         boxes, labels = [], []

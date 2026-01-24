@@ -15,10 +15,12 @@ class TrainingCurveSupervised:
         self.history = {k: [] for k in metrics}
 
     def update(self, epoch_metrics: dict[str, float]) -> None:
+        """Update training history with metrics from the current epoch."""
         for k in self.metrics:
             self.history[k].append(float(epoch_metrics.get(k, 0.0)))
 
     def plot_total(self, save_dir: str, show: bool = False, save_path: str | None = None) -> None:
+        """Plot total training loss over epochs."""
         os.makedirs(save_dir, exist_ok=True)
         if "total" not in self.history:
             return
@@ -53,10 +55,12 @@ class TrainingCurveSemiSupervised:
         self.history_total_loss: list[float] = []
 
     def update_supervised(self, metrics: dict[str, float]) -> None:
+        """Update supervised training history with metrics from the current epoch."""
         for k in self.metrics_supervised:
             self.history_sup[k].append(float(metrics.get(k, 0.0)))
 
     def update_unsupervised(self, metrics: dict[str, float]) -> None:
+        """Update unsupervised training history with metrics from the current epoch."""
         for k in self.metrics_unsupervised:
             self.history_unsup[k].append(float(metrics.get(k, 0.0)))
 
@@ -67,6 +71,7 @@ class TrainingCurveSemiSupervised:
         self, plot_components: bool,
         save_dir: str, show: bool = False, save_path: str | None = None
     ) -> None:
+        """Plot training loss curves, including total loss and optionally components."""
         os.makedirs(save_dir, exist_ok=True)
         fig, ax = plt.subplots(figsize=(10, 6))
 
@@ -102,6 +107,7 @@ class TrainingCurveSemiSupervised:
         self, metrics: dict[str, list[float]], 
         save_dir: str, show: bool = False, save_path: str | None = None
     ) -> None:
+        """Plot evaluation metrics over epochs."""
         os.makedirs(save_dir, exist_ok=True)
         fig, ax = plt.subplots(figsize=(10, 6))
 

@@ -49,24 +49,29 @@ class PointGenerator(nn.Module):
 
     @staticmethod
     def clip_points_to_image(points_xy: Tensor, image_size: tuple[int, int]) -> Tensor:
+        """Clip points to be within image boundaries."""
         H, W = image_size
         x = points_xy[:, 0].clamp(0, W)
         y = points_xy[:, 1].clamp(0, H)
         return torch.stack((x, y), dim=1)
 
     def num_points_per_location(self) -> list[int]:
+        """Get number of points per spatial location for each feature level."""
         return [p.shape[0] for p in self.base_points_cpu]
 
     def get_base_point(self, level: int) -> Tensor:
+        """Get the base points for a specific feature level."""
         return getattr(self, f"base_points_l{level}")
 
     def generate_base_points(self) -> list[Tensor]:
+        """Generate base points for all feature levels."""
         base_points: list[Tensor] = []
         for _ in self.strides:
             base_points.append(Tensor([[0.0, 0.0]], self.dtype, "cpu"))
         return base_points
 
     def get_base_points(self, device: torch.device, dtype: torch.dtype) -> list[Tensor]:
+        """Get base points for all feature levels on a specific device and dtype."""
         key = (device, dtype)
         cached = self.base_cache.get(key, None)
         if cached is not None:
@@ -82,6 +87,7 @@ class PointGenerator(nn.Module):
         return points
 
     def generate_points(self, feature_shapes: list[tuple[int, int]], device: torch.device, dtype: torch.dtype) -> list[Tensor]:
+        """Generate points for all feature levels given their spatial shapes."""
         if len(feature_shapes) != self.num_levels:
             raise ValueError("Feature shapes length must match number of levels")
 
@@ -110,6 +116,7 @@ class PointGenerator(nn.Module):
         device: torch.device | None = None,
         dtype: torch.dtype | None = None
     ) -> list[list[Tensor]] | list[list[AnchorPoints]]:
+        """Generate points for a batch of images given feature shapes and image sizes."""
         if device is None:
             device = self.get_base_point(0).device
         if dtype is None:

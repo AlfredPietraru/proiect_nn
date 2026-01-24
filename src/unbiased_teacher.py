@@ -17,8 +17,7 @@ from core import move_images_to_device, move_targets_to_device, stats_mean_std
 from models import (
     EarlyStopping, ExperimentConfig, EMA,
     evaluate_cam_bboxes,
-    build_model, build_scheduler, build_optimizer
-)
+    build_model, build_scheduler, build_optimizer)
 from bbox import BoxList, box_iou
 from data import (
     TrainingCurveSemiSupervised,
@@ -66,32 +65,40 @@ def generate_pseudo_labels(
     top_k_total_pre: int = 600,  # total candidates per image before NMS
     top_k_total_post: int = 300  # final max per image after NMS
 ) -> list[dict[str, Tensor]]:
+    """Generate pseudo-labels from model predictions on images."""
     model.eval()
     images = move_images_to_device(images, device)
+
     outputs, _ = model(images, None)
     pseudo: list[dict[str, Tensor]] = []
+
     for out in outputs:
         boxes, labels, scores = out["boxes"], out["labels"], out["scores"]
         # Early exit if no boxes at all
         if boxes.numel() == 0:
             pseudo.append({"boxes": boxes, "labels": labels, "scores": scores})
             continue
+
         # Score thresholding - remove the most low confidence preds
         keep = scores > score_thr
         boxes, labels, scores = boxes[keep], labels[keep], scores[keep]
         if boxes.numel() == 0:
             pseudo.append({"boxes": boxes, "labels": labels, "scores": scores})
             continue
+
         # Top-k total per image (pre NMS)
         boxes, labels, scores = top_k_total(boxes, labels, scores, top_k_total_pre)
         # Top-k per class (pre NMS) 
         boxes, labels, scores = top_k_per_class(boxes, labels, scores, top_k_per_cls)
+
         # Class-aware NMS
         keep = batched_nms(boxes, scores, labels, iou_threshold=nms_iou)
         boxes, labels, scores = boxes[keep], labels[keep], scores[keep]
+
         # Score threshold again (safe)
         keep = scores > score_thr
         boxes, labels, scores = boxes[keep], labels[keep], scores[keep]
+
         # Top-k total per image (post NMS, FINAL CAP)
         boxes, labels, scores = top_k_total(boxes, labels, scores, top_k_total_post)
         pseudo.append({"boxes": boxes.detach(), "labels": labels.detach(), "scores": scores.detach()})
@@ -107,6 +114,7 @@ def filter_nonempty_pseudo(pseudo: list[dict[str, Tensor]]) -> tuple[list[dict[s
 
 
 def sum_loss(loss_dict: dict[str, Tensor], keys: list[str]) -> Tensor:
+    """Sum specific losses from loss dictionary based on provided keys."""
     acc = None
     for k in keys:
         if k in loss_dict:
@@ -124,6 +132,7 @@ def train_semi_supervised_one_epoch(
     lambda_unsup: float, score_thr: float, nms_iou: float,
     metric_sup: list[str], metric_unsup: list[str]
 ) -> tuple[dict[str, float], dict[str, float], float]:
+    """Train student for one epoch using semi-supervised learning with teacher-student framework."""
     student.train()
 
     hist_sup = {k: 0.0 for k in metric_sup}
@@ -203,6 +212,7 @@ def validate_semi_supervised(
     device: torch.device, cfg_metrics: IoUMetrics,
     max_iter: int = 3000, nms_iou: float = 0.5
 ) -> tuple[dict[str, float], float]:
+    """Validate student model on test data, return metrics and average loss."""
     student.eval()
 
     metrics = DetectionMetrics(cfg_metrics)
@@ -257,6 +267,14 @@ def pipeline_semi_supervised(
     data: dict[str, DataLoader], device: torch.device,
     metric_sup: list[str], metric_unsup: list[str]
 ) -> None:
+    """
+    Full semi-supervised training pipeline using Unbiased Teacher framework.
+    - 1st: initialize student and teacher (EMA) models
+    - 2nd: setup optimizer, scheduler, early stopping
+    - 3rd: train for N epochs on weak + strong data
+    - 4th: at intervals, save checkpoints, visualize weights, grads, activations, plot pseudo-label distributions
+    - 5th: save all plots and checkpoints to specified paths
+    """
     # Student - initialize model from checkpoint from burn-in stage
     # Load burn-in checkpoint into student model
     student = build_model(cfg=cfg).to(device)

@@ -130,7 +130,7 @@ def download_voc(
     dst_dir: str | Path,
     details: Logger,
     years: tuple[str, ...],
-    force: bool = False,
+    force: bool = False
 ) -> None:
     """
     Download Pascal VOC from Kaggle directly to correct path structure.
@@ -145,8 +145,7 @@ def download_voc(
     """
     VOC_KAGGLE_DATASETS: dict[str, str] = {
         "2007": "zaraks/pascal-voc-2007",                   # Pascal VOC 2007 - usually used for testing
-        "2012": "gopalbhattrai/pascal-voc-2012-dataset",    # Pascal VOC 2012 - usually used for training
-    }    
+        "2012": "gopalbhattrai/pascal-voc-2012-dataset"}    # Pascal VOC 2012 - usually used for training
 
     final_devkit = Path(dst_dir) / "VOCdevkit"
     final_devkit.mkdir(parents=True, exist_ok=True)

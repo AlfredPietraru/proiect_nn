@@ -11,6 +11,7 @@ from .hyperparams import ExperimentConfig
 
 
 def pack_detections(detections: list[dict[str, Tensor]], max_det: int, device: torch.device) -> tuple[Tensor, Tensor, Tensor, Tensor]:
+    """Pack detections into fixed-size tensors for batch processing."""
     n, m = len(detections), int(max_det)
 
     boxes_b  = torch.zeros((n, m, 4), device, torch.float32)
@@ -37,11 +38,11 @@ class FasterRCNNResNet50FPN(nn.Module):
     TorchVision Faster R-CNN wrapper.
 
     Methods:
-      - forward: training -> outputs + loss_dict; inference -> outputs only
-      - loss: compute loss_dict only
-      - as_image_list: normalize NCHW tensor or list[Tensor] into list[Tensor]
-      - extract_features: backbone features for KDD feature losses
-      - predict_boxes_logits: packed detections for BoxMatchKDD
+    - forward: training -> outputs + loss_dict; inference -> outputs only
+    - loss: compute loss_dict only
+    - as_image_list: normalize NCHW tensor or list[Tensor] into list[Tensor]
+    - extract_features: backbone features for KDD feature losses
+    - predict_boxes_logits: packed detections for BoxMatchKDD
     """
 
     def __init__(
@@ -69,6 +70,7 @@ class FasterRCNNResNet50FPN(nn.Module):
         object.__setattr__(self.transform, "max_size", s)
 
     def forward(self, images: Tensor | list[Tensor], targets: list[dict[str, Tensor]] | None) -> tuple[list[dict[str, Tensor]], dict[str, Tensor]]:
+        """Forward pass for training and inference."""
         x_list = self.as_image_list(images)
         original_sizes = [im.shape[-2:] for im in x_list]
 
@@ -92,6 +94,7 @@ class FasterRCNNResNet50FPN(nn.Module):
         return outputs, loss_dict
 
     def loss(self, images: Tensor | list[Tensor], targets: list[dict[str, Tensor]]) -> dict[str, Tensor]:
+        """Compute loss dictionary for training."""
         x_list = self.as_image_list(images)
         images_t, targets_t = self.transform(list(x_list), list(targets))
 
@@ -108,11 +111,13 @@ class FasterRCNNResNet50FPN(nn.Module):
         return out
 
     def as_image_list(self, images: Tensor | list[Tensor]) -> list[Tensor]:
+        """Convert NCHW tensor or list[Tensor] into list[Tensor]."""
         if torch.is_tensor(images):
             return [img for _, img in enumerate(images)]
         return list(images)
 
     def extract_features(self, images: Tensor | list[Tensor]) -> dict[str, Tensor]:
+        """Extract backbone features for KDD feature losses."""
         x_list = self.as_image_list(images)
         images_t, _ = self.transform(list(x_list), None)
 
@@ -122,6 +127,7 @@ class FasterRCNNResNet50FPN(nn.Module):
         return feats
 
     def predict_boxes_logits(self, images: Tensor | list[Tensor]) -> tuple[Tensor, Tensor, Tensor, Tensor]:
+        """Get packed detections for BoxMatchKDD."""
         x_list = self.as_image_list(images)
         images_t, _ = self.transform(list(x_list), None)
 
