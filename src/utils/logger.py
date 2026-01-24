@@ -46,9 +46,11 @@ class Logger:
 
     @property
     def log(self):
+        """Get the underlying loguru logger instance."""
         return self._log
 
     def setup(self) -> None:
+        """Set up the logger with sinks and formatting."""
         logger.remove()
 
         sink = tqdm_sink if self.use_tqdm_sink else sys.stdout
@@ -75,10 +77,12 @@ class Logger:
     def error(self, *a, **k): return self._log.error(*a, **k)
 
     def set_level(self, level: str) -> None:
+        """Set the logging level at runtime."""
         self.level = level
         self.setup()
 
     def section(self, title: str, level: str = "INFO", char: str = "=") -> None:
+        """Log a section header with a title."""
         line = char * max(8, len(title) + 6)
         self._log.log(level, "")
         self._log.log(level, line)
@@ -86,17 +90,21 @@ class Logger:
         self._log.log(level, line)
 
     def rule(self, level: str = "INFO", char: str = "-", width: int = 56) -> None:
+        """Log a horizontal rule line."""
         self._log.log(level, char * width)
 
     def start_task(self, name: str, level: str = "INFO") -> None:
+        """Log the start of a task with a timestamp."""
         self._t0 = time.perf_counter()
         self._log.log(level, f"{name} | start")
 
     def end_task(self, name: str, level: str = "SUCCESS") -> None:
+        """Log the end of a task with elapsed time."""
         t1 = time.perf_counter()
         dt_ms = (t1 - (self._t0 or t1)) * 1000.0
         self._log.log(level, f"{name} | done in {dt_ms:.1f} ms")
         self._t0 = None
 
     def progress(self, total: int, desc: str = "", leave: bool = True) -> tqdm:
+        """Create a tqdm progress bar linked to this logger."""
         return tqdm(total=total, desc=desc, leave=leave, dynamic_ncols=True, mininterval=0.2)

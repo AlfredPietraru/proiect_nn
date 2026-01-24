@@ -208,7 +208,6 @@ def visualize_activations(
     using a single batch from the provided training dataset, and save the plot
     to the specified output directory.
     """
-
     if train_set is None:
         logger.warning("No train set provided, skipping activation visualization.")
         return
