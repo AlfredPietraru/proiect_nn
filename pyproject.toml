@@ -1,0 +1,28 @@
+[tool.pylint.main]
+py-version = "3.11"
+jobs = 0
+ignore-patterns = ["^\\.venv/.*", "^venv/.*", "^build/.*", "^dist/.*", "^outputs/.*", "^data/.*"]
+
+[tool.pylint.messages_control]
+disable = [
+    "C0114",  # missing-module-docstring
+    "C0115",  # missing-class-docstring
+    "C0116",  # missing-function-docstring
+    "R0913",  # too-many-arguments
+    "R0914",  # too-many-locals
+    "R0915"   # too-many-statements
+]
+
+[tool.pylint.format]
+max-line-length = 120
+
+[tool.ruff]
+line-length = 120
+exclude = [
+    ".venv", "venv", "build", "dist", "outputs", "data",
+    ".ipynb_checkpoints", "__pycache__", 
+    "*pdf", "*png", "*jpg", "*jpeg", "*wav", "*yaml", "*.yml"]
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "UP"]
+ignore = ["E501"]
