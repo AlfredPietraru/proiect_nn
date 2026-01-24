@@ -1,11 +1,11 @@
-name: Lint (py)
+name: Run Learning Pipeline
 
 on:
   push:
   pull_request:
 
 jobs:
-  lint:
+  run-pipeline:
     runs-on: ubuntu-latest
 
     strategy:
@@ -26,18 +26,7 @@ jobs:
         run: |
           bash scripts/venv.sh
 
-      - name: Lint (py)
+      - name: Run Learning Pipeline
         shell: bash
         run: |
-          set -e
-          mapfile -t PY_FILES < <(git ls-files '*.py')
-
-          echo "Python files: ${#PY_FILES[@]}"
-
-          if [ ${#PY_FILES[@]} -gt 0 ]; then
-            pylint "${PY_FILES[@]}"
-          else
-            echo "No .py files found, skipping pylint"
-          fi
-
-          ruff check .
+            bash scripts/run.sh

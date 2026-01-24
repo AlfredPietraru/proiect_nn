@@ -7,16 +7,16 @@ import os  # noqa: E402
 import torch  # noqa: E402
 from typing import cast  # noqa: E402
 
-from utils import Logger, set_seed  # noqa: E402
+from src.utils import Logger, set_seed  # noqa: E402
 
-from data import build_dataloaders  # noqa: E402
-from dataset_details import dataset_details  # noqa: E402
+from src.data import build_dataloaders  # noqa: E402
+from src.dataset_details import dataset_details  # noqa: E402
 
-from burn_in import pipeline_burn_in  # noqa: E402
-from unbiased_teacher import pipeline_semi_supervised  # noqa: E402
-from kl_divergence import pipeline_kdd  # noqa: E402
+from src.burn_in import pipeline_burn_in  # noqa: E402
+from src.unbiased_teacher import pipeline_semi_supervised  # noqa: E402
+from src.kl_divergence import pipeline_kdd  # noqa: E402
 
-from models.hyperparams import ExperimentConfig, ArchName, dataset_classes, kdd_metric_keys  # noqa: E402
+from src.models.hyperparams import ExperimentConfig, ArchName, dataset_classes, kdd_metric_keys  # noqa: E402
 
 
 # Training loss keys to LOG (not eval metrics like mAP/IoU)
