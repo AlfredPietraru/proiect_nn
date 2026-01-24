@@ -1,6 +1,7 @@
 # Project-specific data & outputs
 VOC/*
-datasets/*
+src/datasets/*
+datasets/
 results/
 results_val/
 logs/
