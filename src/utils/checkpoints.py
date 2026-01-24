@@ -1,23 +1,14 @@
 from __future__ import annotations
 
 import os
-from typing import Optional, Tuple
-from loguru import logger
-
 import torch
 import torch.nn as nn
+from loguru import logger
 
 
-def save_checkpoint(
-    model: nn.Module,
-    optimizer: Optional[torch.optim.Optimizer],
-    epoch: int, path: str
-) -> None:
+def save_checkpoint(model: nn.Module, optimizer: torch.optim.Optimizer | None, epoch: int, path: str) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    ckpt = {
-        "epoch": int(epoch),
-        "model_state_dict": model.state_dict(),
-    }
+    ckpt = {"epoch": int(epoch), "model_state_dict": model.state_dict()}
     if optimizer is not None:
         ckpt["optimizer_state_dict"] = optimizer.state_dict()
 
@@ -26,11 +17,10 @@ def save_checkpoint(
 
 
 def load_checkpoint(
-    path: str,
-    model: nn.Module,
-    optimizer: Optional[torch.optim.Optimizer] = None,
-    device: torch.device = torch.device("cpu")
-) -> Tuple[nn.Module, Optional[torch.optim.Optimizer], int]:
+    path: str, model: nn.Module,
+    optimizer: torch.optim.Optimizer | None = None,
+    device: torch.device | None = None
+) -> tuple[nn.Module, torch.optim.Optimizer | None, int]:
     if not os.path.isfile(path):
         raise FileNotFoundError(f"Checkpoint not found: {path}")
 

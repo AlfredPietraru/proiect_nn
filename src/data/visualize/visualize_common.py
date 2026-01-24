@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Optional, Sequence, Mapping
-
+from typing import Any
 import os
 import numpy as np
 import torch
@@ -29,7 +28,7 @@ def wrap_text(s: str, wrap: int) -> str:
 
 
 def format_series(
-    x: float | Sequence[float] | None,
+    x: float | list[float] | None,
     decimals: int = 4,
     max_items: int | None = None,
 ) -> str | None:
@@ -66,8 +65,8 @@ def save_figure(fig: Figure, path: str, dpi: int = 300) -> None:
 
 def to_numpy_image(
     img: torch.Tensor,
-    mean: Optional[Sequence[float]] = None,
-    std: Optional[Sequence[float]] = None,
+    mean: list[float] | None = None,
+    std: list[float] | None = None,
 ) -> np.ndarray:
     """
     Convert CHW torch image to HWC numpy in [0,1].
@@ -119,7 +118,7 @@ def as_list(x: Any) -> list[Any]:
     return list(x)
 
 
-def get_info(classes: Mapping[int, ClassInfo], cid: int) -> ClassInfo:
+def get_info(classes: dict[int, ClassInfo], cid: int) -> ClassInfo:
     """Get class info by ID, or return a default if not found."""
     info = classes.get(int(cid))
     if info is None:

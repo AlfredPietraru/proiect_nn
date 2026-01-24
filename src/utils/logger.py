@@ -1,5 +1,4 @@
 from __future__ import annotations
-from __future__ import print_function
 
 import sys
 import time
@@ -7,8 +6,6 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
-
 from loguru import logger
 from tqdm import tqdm
 
@@ -42,10 +39,9 @@ class Logger:
             "<level>{level:<7}</level> | "
             f"<cyan>{self.app}</cyan>:<magenta>{self.run_id}</magenta> | "
             "<cyan>{name}</cyan>:<cyan>{line}</cyan> <cyan>{function}</cyan> - "
-            "<level>{message}</level>"
-        )
+            "<level>{message}</level>")
 
-        self._t0: Optional[float] = None
+        self._t0: None | float = None
         self.setup()
 
     @property

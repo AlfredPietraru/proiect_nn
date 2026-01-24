@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Sequence, Tuple, Dict, Optional
-
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
@@ -33,11 +31,11 @@ def agreement_matrix(
 
 
 def plot_agreement_heatmap(
-    cm: np.ndarray, class_names: Sequence[str],
+    cm: np.ndarray, class_names: list[str],
     title: str, cmap: str = "Blues",
-    figsize: Tuple[int, int] = (8, 6), 
-    show: bool = True, save_path: Optional[str] = None
-) -> Tuple[Figure, Axes]:
+    figsize: tuple[int, int] = (8, 6), 
+    show: bool = True, save_path: str | None = None
+) -> tuple[Figure, Axes]:
     """
     Plot agreement heatmap from confusion matrix.
     Visualizes how often student predictions agree with teacher predictions.
@@ -45,7 +43,6 @@ def plot_agreement_heatmap(
     - Y-axis: teacher predictions (rows)
     - X-axis: student predictions (columns)
     """
-
     fig, ax = plt.subplots(figsize=figsize)
 
     sns.heatmap(cm, ax=ax, annot=True, fmt=".2f",
@@ -71,11 +68,10 @@ def plot_agreement_heatmap(
 def plot_agreement_ema_vs_kdd(
     teacher_ema: np.ndarray, student_ema: np.ndarray,
     teacher_kdd: np.ndarray, student_kdd: np.ndarray,
-    class_names: Sequence[str], arch_name: str,
-    figsize: Tuple[int, int] = (16, 6), 
-    show: bool = True, save_path: Optional[str] = None
-) -> Tuple[Figure, np.ndarray]:
-
+    class_names: list[str], arch_name: str,
+    figsize: tuple[int, int] = (16, 6), 
+    show: bool = True, save_path: str | None = None
+) -> tuple[Figure, np.ndarray]:
     num_classes = len(class_names)
     cm_ema = agreement_matrix(teacher_ema, student_ema, num_classes)
     cm_kdd = agreement_matrix(teacher_kdd, student_kdd, num_classes)
@@ -108,12 +104,11 @@ def plot_agreement_ema_vs_kdd(
 
 
 def plot_cross_arch_agreement(
-    agreement_by_arch: Dict[str, np.ndarray],
-    class_names: Sequence[str], teacher_arch: str,
-    figsize: Tuple[int, int] = (18, 6), 
-    show: bool = True, save_path: Optional[str] = None
-) -> Tuple[Figure, np.ndarray]:
-
+    agreement_by_arch: dict[str, np.ndarray],
+    class_names: list[str], teacher_arch: str,
+    figsize: tuple[int, int] = (18, 6), 
+    show: bool = True, save_path: str | None = None
+) -> tuple[Figure, np.ndarray]:
     fig, axes = plt.subplots(1, len(agreement_by_arch), figsize=figsize)
     axes = np.atleast_1d(axes)
 
@@ -139,8 +134,8 @@ def plot_cross_arch_agreement(
 @torch.no_grad()
 def plot_agreement_teacher_vs_student(
     teacher_logits: torch.Tensor, student_logits: torch.Tensor,
-    class_names: Sequence[str], title: str, 
-    show: bool = True, save_path: Optional[str] = None
+    class_names: list[str], title: str, 
+    show: bool = True, save_path: str | None = None
 ) -> None:
     """Plot a teacher-vs-student label agreement heatmap (argmax logits -> agreement matrix)."""
     t = teacher_logits.argmax(dim=1).detach().cpu().numpy()

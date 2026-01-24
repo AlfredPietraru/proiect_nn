@@ -9,12 +9,12 @@ from .model_info import (
     visualize_activations,
 )
 from .net import visualize_model, save_model, load_model
-from .oncuda import pick_workers, setup_parallel
+from .oncuda import pick_workers, setup_parallel, set_seed
 
 __all__ = [
     "Logger",
     "save_checkpoint", "load_checkpoint",
     "plot_dists", "visualize_weight_distribution", "visualize_gradients", "visualize_activations",
     "visualize_model", "save_model", "load_model",
-    "pick_workers", "setup_parallel"
+    "pick_workers", "setup_parallel", "set_seed"
 ]

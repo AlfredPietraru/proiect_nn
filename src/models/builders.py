@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from typing import Iterable, List
 import math
 import torch
 
@@ -18,7 +17,7 @@ def build_model(cfg: ExperimentConfig) -> torch.nn.Module:
     - ResNet50 with GradCAM++
     - YOLO-N11
     """
-    arch = getattr(cfg.model, "arch")
+    arch = cfg.model.arch
     if arch == "fasterrcnn":
         return get_model_fasterrcnn(cfg=cfg)
     if arch == "resnet50_gradcampp":
@@ -83,7 +82,7 @@ def onecycle_lr_lambda(
 
 def multistep_lr_lambda(
     it: int, T: int, Tw: int, 
-    warmup_bias_lr: float, milestones_iters: Iterable[int], gamma: float) -> float:
+    warmup_bias_lr: float, milestones_iters: list[int], gamma: float) -> float:
     if gamma <= 0.0:
         raise ValueError("Gamma must be > 0.")
     if it < Tw:
@@ -98,7 +97,7 @@ def multistep_lr_lambda(
 def build_scheduler(
     optimizer: torch.optim.Optimizer,
     scheme: str, total_epochs: int,
-    steps_per_epoch: int, milestones: List[int],
+    steps_per_epoch: int, milestones: list[int],
     warmup_epochs: int = 3, warmup_bias_lr: float = 0.1,
     min_lr_ratio: float = 0.005, gamma: float = 0.1
 ) -> torch.optim.lr_scheduler._LRScheduler:

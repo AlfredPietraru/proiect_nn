@@ -1,15 +1,14 @@
 from __future__ import annotations
 
-from .box_utils import box_area, box_iou
 from .boxes import AnchorBoxes, AnchorGenerator
+from .box_utils import box_area, box_iou
 from .box_ops import (
     BoxList,
     encode_boxes, decode_boxes,
     anchors_to_boxlist,
     filter_by_image_labels,
     match_anchors_to_gt,
-    aggregate_boxes
-)
+    aggregate_boxes)
 from .points import AnchorPoints, PointGenerator
 from .point_ops import (
     PointList,
@@ -17,8 +16,7 @@ from .point_ops import (
     points_to_pointlist,
     filter_points_by_image_labels,
     match_points_to_gt,
-    aggregate_points
-)
+    aggregate_points)
 
 __all__ = [
     "box_area", "box_iou",

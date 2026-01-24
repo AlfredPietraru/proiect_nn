@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Tuple
 import os
-
 import numpy as np
-
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -45,21 +42,21 @@ def init_kdd(cfg: ExperimentConfig, device: torch.device):
         if kind == "box_match":
             w_cls, w_feat, w_box = (0.0, 0.0, 1.0)
 
-    kdd_cls: Optional[nn.Module] = None
+    kdd_cls: nn.Module | None = None
     if kind in ("weakstrong", "combo"):
-        kdd_cls = WeakStrongKDD(tau=cfg.kdd.tau, gamma=cfg.kdd.gamma, eps=cfg.kdd.eps).to(device)
+        kdd_cls = WeakStrongKDD(tau=cfg.kdd.tau, gamma=cfg.kdd.gamma).to(device)
 
     if kind == "cross_dataset":
         if cfg.kdd.teacher_to_student is None:
             raise ValueError("Cross-dataset requires mapping between teacher and student classes.")
         proj = ClassProjector(teacher_to_student=cfg.kdd.teacher_to_student, ks=int(cfg.data.num_classes)).to(device)
-        kdd_cls = CrossDatasetKDD(projector=proj, tau=cfg.kdd.tau, gamma=cfg.kdd.gamma, eps=cfg.kdd.eps).to(device)
+        kdd_cls = CrossDatasetKDD(projector=proj, tau=cfg.kdd.tau, gamma=cfg.kdd.gamma).to(device)
 
-    kdd_feat: Optional[nn.Module] = None
+    kdd_feat: nn.Module | None = None
     if kind in ("feature", "combo"):
         kdd_feat = FeatureKDD(proj=nn.Identity(), beta=cfg.kdd.beta).to(device)
 
-    kdd_box: Optional[nn.Module] = None
+    kdd_box: nn.Module | None = None
     if kind in ("box_match", "combo"):
         kdd_box = BoxMatchKDD(
             tau=cfg.kdd.tau, gamma=cfg.kdd.gamma, 
@@ -71,10 +68,10 @@ def init_kdd(cfg: ExperimentConfig, device: torch.device):
 def train_kdd_one_epoch(
     teacher: nn.Module, student: nn.Module, 
     optimizer: torch.optim.Optimizer, scheduler: torch.optim.lr_scheduler._LRScheduler, 
-    data: Dict[str, DataLoader], device: torch.device, max_iter: int,
-    metric_keys: List[str], kind: str, weights: Tuple[float, float, float],
-    kdd_cls: Optional[nn.Module], kdd_feat: Optional[nn.Module], kdd_box: Optional[nn.Module]
-) -> Dict[str, float]:
+    data: dict[str, DataLoader], device: torch.device, max_iter: int,
+    metric_keys: list[str], kind: str, weights: tuple[float, float, float],
+    kdd_cls: nn.Module | None, kdd_feat: nn.Module | None, kdd_box: nn.Module | None
+) -> dict[str, float]:
     teacher.eval()
     student.train()
 
@@ -84,10 +81,10 @@ def train_kdd_one_epoch(
     w_cls, w_feat, w_box = weights
     loader = data["train_weak"]
 
-    get_feat_t = getattr(teacher, "extract_features")
-    get_feat_s = getattr(student, "extract_features")
-    get_box_t = getattr(teacher, "predict_boxes_logits")
-    get_box_s = getattr(student, "predict_boxes_logits")
+    get_feat_t = teacher.extract_features
+    get_feat_s = student.extract_features
+    get_box_t = teacher.predict_boxes_logits
+    get_box_s = student.predict_boxes_logits
 
     for step_idx, (img_weak, img_strong) in enumerate(tqdm(loader, desc=f"KDD ({kind}) train")):
         if step_idx >= max_iter:
@@ -153,10 +150,10 @@ def train_kdd_one_epoch(
 
 def pipeline_kdd(
     cfg: ExperimentConfig,
-    data: Dict[str, DataLoader],
+    data: dict[str, DataLoader],
     device: torch.device,
     teacher_ckpt: str, student_ckpt: str,
-    metric_keys: List[str], top_k: int
+    metric_keys: list[str], top_k: int
 ) -> None:
     teacher = build_model(cfg=cfg).to(device)
     student = build_model(cfg=cfg).to(device)
@@ -181,9 +178,9 @@ def pipeline_kdd(
     graphs_dir = "graphs"
     os.makedirs(graphs_dir, exist_ok=True)
 
-    kl_kdd_curve: List[float] = []
-    kl_teacher_curve: List[float] = []
-    kl_ema_curve: List[float] = [] 
+    kl_kdd_curve: list[float] = []
+    kl_teacher_curve: list[float] = []
+    kl_ema_curve: list[float] = [] 
 
     for epoch in tqdm(range(cfg.train.epochs), desc=f"KDD epochs ({kind})"):
         train_hist = train_kdd_one_epoch(
@@ -255,7 +252,7 @@ def pipeline_kdd(
 
             # For Grad-CAM models, perform bbox evaluation at each checkpoint
             if cfg.model.arch == "resnet_gradcam":
-                metrics: Dict[str, float] = {}
+                metrics: dict[str, float] = {}
                 if hasattr(data["val"], "dataset"):
                     val_set = data["val"].dataset
                     metrics = evaluate_cam_bboxes(

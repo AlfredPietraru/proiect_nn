@@ -1,26 +1,23 @@
 from __future__ import annotations
 
+from typing import Any
 import os
-from typing import List, Tuple, Any, Mapping, Optional
-
 import torch
 import torch.nn as nn
 from loguru import logger
 from torchviz import make_dot
 
+DEVICE: torch.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-
-def collect_tensors(obj: Any) -> List[torch.Tensor]:
+def collect_tensors(obj: Any) -> list[torch.Tensor]:
     if torch.is_tensor(obj):
         return [obj]
 
-    if isinstance(obj, Mapping):
+    if isinstance(obj, dict):
         return [v for v in obj.values() if torch.is_tensor(v)]
 
-    if isinstance(obj, (List, Tuple)):
-        out: List[torch.Tensor] = []
+    if isinstance(obj, (list, tuple)):
+        out: list[torch.Tensor] = []
         for item in obj:
             out.extend(collect_tensors(item))
         return out
@@ -37,12 +34,9 @@ def output_to_viz_tensor(output: Any) -> torch.Tensor:
 
 @torch.no_grad()
 def visualize_model(
-    model: nn.Module,
-    *model_args: Any,
-    arch: str = "model",
-    experiment: str = "run",
-    out_dir: str = "output",
-    **model_kwargs: Any,
+    model: nn.Module, *model_args: Any,
+    arch: str = "model", experiment: str = "run",
+    out_dir: str = "output", **model_kwargs: Any
 )  -> Any:
     model = model.to("cpu").eval()
 
@@ -69,11 +63,7 @@ def save_model(out_dir: str, name: str, net: nn.Module) -> str:
     return path
 
 
-def load_model(
-    ckpt_dir: str, 
-    name: str, net: nn.Module, 
-    device: Optional[torch.device]
-) -> nn.Module:
+def load_model(ckpt_dir: str, name: str, net: nn.Module, device: torch.device | None = None) -> nn.Module:
     if net is None:
         raise ValueError("Model instance must be provided to load the state dict.")
 

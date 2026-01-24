@@ -1,5 +1,4 @@
 from __future__ import annotations
-from __future__ import print_function
 
 import os
 import torch
@@ -7,9 +6,7 @@ import random
 import numpy as np
 from loguru import logger
 
-
-DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
+DEVICE: torch.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 def pick_workers() -> int:
     num_workers = os.cpu_count() or 1

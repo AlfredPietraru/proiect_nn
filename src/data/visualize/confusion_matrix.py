@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Tuple, Sequence, Optional
-
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
@@ -14,9 +12,9 @@ sns.set_theme(style="whitegrid")
 
 
 def plot_heatmap(
-    cm: np.ndarray, class_names: Sequence[str], ax: Axes, 
+    cm: np.ndarray, class_names: list[str], ax: Axes, 
     title: str, fmt: str, cmap: str, rotation_x: int,
-    vmin: Optional[float] = None, vmax: Optional[float] = None
+    vmin: float | None = None, vmax: float | None = None
 ) -> None:
     """
     Plot a confusion-matrix heatmap on a given axis (rows=true, cols=pred).
@@ -34,10 +32,10 @@ def plot_heatmap(
 
 
 def plot_confusion_matrix(
-    cm: np.ndarray, class_names: Sequence[str],
+    cm: np.ndarray, class_names: list[str],
     title: str = "Confusion Matrix",
-    figsize: tuple = (8, 6), show: bool = True,
-    save_path: Optional[str] = None, normalize: bool = False,
+    figsize: tuple[int, int] = (8, 6), show: bool = True,
+    save_path: str | None = None, normalize: bool = False,
     fmt: str = "d", cmap: str = "Greens"
 ) -> tuple[Figure, Axes]:
     """Plot a single confusion matrix as a heatmap (rows=true, cols=pred)."""
@@ -77,15 +75,15 @@ def plot_confusion_matrix(
 
 
 def plot_confusion_matrices_side_by_side(
-    cm_left: np.ndarray, cm_right: np.ndarray, class_names: Sequence[str],
-    left_acc: Optional[Sequence[float] | float], 
-    right_acc: Optional[Sequence[float] | float],
+    cm_left: np.ndarray, cm_right: np.ndarray, class_names: list[str],
+    left_acc: float | list[float] | None, 
+    right_acc: float | list[float] | None,
     left_title: str = "Model A", right_title: str = "Model B",
     left_cmap: str = "Blues", right_cmap: str = "Greens",
-    figsize: Tuple[int, int] = (16, 7), fmt: str = "d",
-    shared_scale: bool = True, acc_max_items: Optional[int] = None,
-    show: bool = True, save_path: Optional[str] = None
-) -> Tuple[Figure, Sequence[Axes]]:
+    figsize: tuple[int, int] = (16, 7), fmt: str = "d",
+    shared_scale: bool = True, acc_max_items: int | None = None,
+    show: bool = True, save_path: str | None = None
+) -> tuple[Figure, list[Axes]]:
     """
     Plot two confusion matrices side by side for comparison.
     The comparasions are meant to be between two models (e.g., Model A vs. Model B)

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Dict, List, Tuple, Optional
-
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -10,9 +8,7 @@ from matplotlib.axes import Axes
 
 sns.set_theme(style="whitegrid")
 
-
 EPS: float = 1e-6
-
 
 def kl_divergence(p: np.ndarray, q: np.ndarray) -> float:
     """KL divergence D_KL(P || Q) between two distributions."""
@@ -22,11 +18,11 @@ def kl_divergence(p: np.ndarray, q: np.ndarray) -> float:
 
 
 def plot_kl_stagewise(
-    kl_ema: List[float], kl_teacher: List[float], kl_kdd: List[float],
-    arch_name: str, figsize: Tuple[int, int] = (10, 6), 
+    kl_ema: list[float], kl_teacher: list[float], kl_kdd: list[float],
+    arch_name: str, figsize: tuple[int, int] = (10, 6), 
     title: str = "KL Divergence (Stage-wise)",
-    show: bool = True, save_path: Optional[str] = None
-) -> Tuple[Figure, Axes]:
+    show: bool = True, save_path: str | None = None
+) -> tuple[Figure, Axes]:
     """Plot KL divergence over training epochs for different models."""
     epochs = range(1, max(len(kl_ema), len(kl_teacher), len(kl_kdd)) + 1)
     fig, ax = plt.subplots(figsize=figsize)
@@ -53,10 +49,10 @@ def plot_kl_stagewise(
 
 
 def plot_cross_arch_kl(
-    kl_by_arch: Dict[str, List[float]], teacher_arch: str,
-    figsize: Tuple[int, int] = (10, 6),
-    show: bool = True, save_path: Optional[str] = None
-) -> Tuple[Figure, Axes]:
+    kl_by_arch: dict[str, list[float]], teacher_arch: str,
+    figsize: tuple[int, int] = (10, 6),
+    show: bool = True, save_path: str | None = None
+) -> tuple[Figure, Axes]:
     """Plot KL divergence curves for different student architectures."""
     fig, ax = plt.subplots(figsize=figsize)
 
@@ -80,11 +76,11 @@ def plot_cross_arch_kl(
 
 
 def plot_cross_dataset_kl(
-    kl_by_dataset: Dict[str, List[float]],
+    kl_by_dataset: dict[str, list[float]],
     teacher_dataset: str, teacher_arch: str,
-    figsize: Tuple[int, int] = (10, 6),
-    show: bool = True, save_path: Optional[str] = None
-) -> Tuple[Figure, Axes]:
+    figsize: tuple[int, int] = (10, 6),
+    show: bool = True, save_path: str | None = None
+) -> tuple[Figure, Axes]:
     """Plot KL divergence curves for different student datasets."""
     fig, ax = plt.subplots(figsize=figsize)
 

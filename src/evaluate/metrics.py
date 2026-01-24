@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Tuple, Optional
-
 import torch
 
 from bbox.box_ops import BoxList
@@ -14,7 +12,7 @@ def stats_for_class(
     store: DetectionStore,
     selector: ClassSelector,
     cls: int, cfg: IoUMetrics
-) -> Tuple[APStats, PRStats]:
+) -> tuple[APStats, PRStats]:
     pred_boxes_list, pred_scores_list, tgt_boxes_list = [], [], []
 
     for pred_bl, tgt_bl in zip(store.preds, store.tgts):
@@ -43,22 +41,19 @@ def stats_for_class(
 class IoUMetrics:
     num_classes: int
     class_agnostic: bool            # Whether to ignore class labels in evaluation
-    iou_thrs: Tuple[float, ...]     # IoU thresholds for AP calculation
+    iou_thrs: tuple[float, ...]     # IoU thresholds for AP calculation
     score_thresh: float             # Score threshold for considering predictions
 
-    def metric_names(self) -> List[str]:
+    def metric_names(self) -> list[str]:
         return [
-            "mAP_50", "mAP_5095",
-            "precision", "recall", "f1",
-            "ap_num_pred", "ap_num_gt",
-            "pr_num_pred", "pr_num_gt"
-        ]
+            "mAP_50", "mAP_5095", "precision", "recall", "f1",
+            "ap_num_pred", "ap_num_gt", "pr_num_pred", "pr_num_gt"]
 
 
 @dataclass
 class DetectionStore:
-    preds: List[BoxList]
-    tgts: List[BoxList]
+    preds: list[BoxList]
+    tgts: list[BoxList]
 
     def __init__(self) -> None:
         self.preds = []
@@ -68,7 +63,7 @@ class DetectionStore:
         self.preds.clear()
         self.tgts.clear()
 
-    def update(self, preds: List[BoxList], tgts: List[BoxList]) -> None:
+    def update(self, preds: list[BoxList], tgts: list[BoxList]) -> None:
         self.preds.extend(preds)
         self.tgts.extend(tgts)
 
@@ -80,12 +75,7 @@ class ClassSelector:
     def num_classes(self) -> int:
         return 1 if self.cfg.class_agnostic else self.cfg.num_classes
 
-    def select(
-        self,
-        pred_bl: BoxList,
-        tgt_bl: BoxList,
-        cls: int
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def select(self, pred_bl: BoxList, tgt_bl: BoxList, cls: int) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         if self.cfg.class_agnostic:
             pred_mask = torch.ones_like(pred_bl.labels, dtype=torch.bool)
             tgt_mask = torch.ones_like(tgt_bl.labels, dtype=torch.bool)
@@ -104,28 +94,28 @@ class ClassSelector:
 
 
 class DetectionMetrics:
-    def __init__(self, cfg: IoUMetrics):
+    def __init__(self, cfg: IoUMetrics) -> None:
         self.cfg = cfg
         self.store = DetectionStore()
         self.selector = ClassSelector(cfg)
         # Caching the metrics for - AP and PR per class - to avoid recomputation
-        self.cache_metrics: Optional[Tuple[Dict[int, APStats], Dict[int, PRStats]]] = None
+        self.cache_metrics: tuple[dict[int, APStats], dict[int, PRStats]] | None = None
 
     def reset(self) -> None:
         self.store.reset()
         self.cache_metrics = None
 
-    def update(self, preds: List[BoxList], targets: List[BoxList]) -> None:
+    def update(self, preds: list[BoxList], targets: list[BoxList]) -> None:
         self.store.update(preds, targets)
         self.cache_metrics = None
 
-    def core(self) -> Tuple[Dict[int, APStats], Dict[int, PRStats]]:
+    def core(self) -> tuple[dict[int, APStats], dict[int, PRStats]]:
         if self.cache_metrics is not None:
             return self.cache_metrics
 
         num_classes = self.selector.num_classes()
-        ap_per_class: Dict[int, APStats] = {}
-        pr_per_class: Dict[int, PRStats] = {}
+        ap_per_class: dict[int, APStats] = {}
+        pr_per_class: dict[int, PRStats] = {}
 
         for cls in range(num_classes):
             ap_st, pr_st = stats_for_class(self.store, self.selector, cls, self.cfg)
@@ -135,7 +125,7 @@ class DetectionMetrics:
         self.cache_metrics = (ap_per_class, pr_per_class)
         return self.cache_metrics
 
-    def compute(self) -> Dict[str, float]:
+    def compute(self) -> dict[str, float]:
         ap_per_class, pr_per_class = self.core()
         num_classes = self.selector.num_classes()
         thrs = self.cfg.iou_thrs
@@ -165,8 +155,5 @@ class DetectionMetrics:
         pr_num_gt = sum(pr_per_class[c].num_gt for c in range(num_classes))
 
         return {
-            "mAP_50": float(mAP_50), "mAP_5095": float(mAP_5095),
-            "precision": float(p), "recall": float(r), "f1": float(f1),
-            "ap_num_pred": float(ap_num_pred), "ap_num_gt": float(ap_num_gt),
-            "pr_num_pred": float(pr_num_pred), "pr_num_gt": float(pr_num_gt)
-        }
+            "mAP_50": float(mAP_50), "mAP_5095": float(mAP_5095), "precision": float(p), "recall": float(r), "f1": float(f1),
+            "ap_num_pred": float(ap_num_pred), "ap_num_gt": float(ap_num_gt), "pr_num_pred": float(pr_num_pred), "pr_num_gt": float(pr_num_gt)}

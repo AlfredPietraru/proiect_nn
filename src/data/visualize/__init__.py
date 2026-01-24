@@ -1,5 +1,4 @@
 from __future__ import annotations
-from __future__ import absolute_import
 
 from .training_curves import TrainingCurveSupervised, TrainingCurveSemiSupervised
 from .confusion_matrix import (

@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 import random
-from typing import Dict, List, Optional, Tuple
-
 import albumentations as A
 import cv2
 import torch
@@ -14,13 +12,13 @@ from data.datasets.download import download_visdrone
 from utils.logger import Logger
 
 
-def find_visdrone_pairs(root: Path, split: str, percentage: float = 1.0) -> Tuple[List[Path], List[Path]]:
+def find_visdrone_pairs(root: Path, split: str, percentage: float = 1.0) -> tuple[list[Path], list[Path]]:
     """Find VisDrone image and annotation file pairs."""
     img_dir = root / split / "images"
     ann_dir = root / split / "annotations"
 
-    images: List[Path] = []
-    annots: List[Path] = []
+    images: list[Path] = []
+    annots: list[Path] = []
 
     if not img_dir.exists() or not ann_dir.exists():
         return images, annots
@@ -42,7 +40,7 @@ def find_visdrone_pairs(root: Path, split: str, percentage: float = 1.0) -> Tupl
     return images, annots
 
 
-def parse_visdrone_txt(ann_path: Path) -> Dict[str, List]:
+def parse_visdrone_txt(ann_path: Path) -> dict[str, list]:
     """Parse VisDrone annotation from a text file."""
     boxes, labels = [], []
 
@@ -84,7 +82,7 @@ class VisDroneDataset(Dataset):
         self,
         details: Logger,
         root: str, split: str = "train",
-        transform: Optional[A.Compose] = None,
+        transform: A.Compose | None = None,
         download: bool = True, percentage: float = 1.0
     ) -> None:
         assert split in {"train", "val", "test"}
@@ -111,7 +109,7 @@ class VisDroneDataset(Dataset):
     def __len__(self) -> int:
         return len(self.images)
 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
         img_path = self.images[idx]
         ann_path = self.annotations[idx]
 

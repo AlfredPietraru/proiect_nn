@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Tuple
 import random
 from pathlib import Path
 from xml.etree import ElementTree as ET
-
 import albumentations as A
 import numpy as np
 import cv2
@@ -16,7 +14,7 @@ from data.datasets.download import download_voc
 from utils.logger import Logger
 
 
-def find_voc_pairs(root: Path, split: str, years: List[int], percentage: float = 1.0) -> Tuple[List[Path], List[Path]]:
+def find_voc_pairs(root: Path, split: str, years: list[int], percentage: float = 1.0) -> tuple[list[Path], list[Path]]:
     """Load image and annotation file paths for the specified split and years."""
     images: list[Path] = []
     annotations: list[Path] = []
@@ -103,7 +101,7 @@ def find_voc_pairs(root: Path, split: str, years: List[int], percentage: float =
     return sampled_images, sampled_annotations
 
 
-def parse_voc_xml(annotation_path: Path) -> Dict[str, List]:
+def parse_voc_xml(annotation_path: Path) -> dict[str, list]:
     """Parse a VOC XML annotation file into a dictionary of tensors."""
     tree = ET.parse(annotation_path)
     root = tree.getroot()
@@ -174,9 +172,9 @@ def parse_voc_xml(annotation_path: Path) -> Dict[str, List]:
 class VOCDataset(Dataset):
     def __init__(
         self,
-        details: Logger, years: Tuple[str],
+        details: Logger, years: tuple[str, ...],
         root: str = "VOC", split: str = "train",
-        transform: Optional[A.Compose] = None,
+        transform: A.Compose | None = None,
         download: bool = True, percentage : float = 1.0
     ) -> None:
         assert split in ["train", "trainval", "val", "test", "train_test"], "Invalid split name"
@@ -184,7 +182,7 @@ class VOCDataset(Dataset):
 
         self.root = Path(root)
         self.split = split
-        self.years = years or ["2007", "2012"]
+        self.years = years or ("2007", "2012")
         self.transform = transform
         self.details = details
 

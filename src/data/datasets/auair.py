@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Tuple, Union
 import random
 from pathlib import Path
 
@@ -15,24 +14,24 @@ from data.datasets.download import download_auair
 from utils.logger import Logger
 
 
-def find_auair_pairs(root: Path, split: str, percentage: float = 1.0) -> Tuple[List[Path], List[List[dict]]]:
+def find_auair_pairs(root: Path, split: str, percentage: float = 1.0) -> tuple[list[Path], list[list[dict]]]:
     """Find AU-AIR image and annotation file pairs."""
     ann_file = root / "annotations" / f"{split}.json"
     img_dir = root / "images"
     if not ann_file.exists() or not img_dir.exists():
         return [], []
 
-    images: List[Path] = []
-    annots: List[List[dict]] = []
+    images: list[Path] = []
+    annots: list[list[dict]] = []
 
     data = json.loads(ann_file.read_text(encoding="utf-8"))
 
-    id_to_file: Dict[int, Path] = {}
+    id_to_file: dict[int, Path] = {}
     for im in data.get("images", []):
         img_id = int(im["id"])
         id_to_file[img_id] = img_dir / im["file_name"]
 
-    per_image: Dict[Path, List[dict]] = {}
+    per_image: dict[Path, list[dict]] = {}
     for ann in data.get("annotations", []):
         img_id = int(ann["image_id"])
         img_path = id_to_file.get(img_id)
@@ -54,7 +53,7 @@ def find_auair_pairs(root: Path, split: str, percentage: float = 1.0) -> Tuple[L
     return images, annots
 
 
-def parse_auair_anns(anns: Union[Path, List[dict]]) -> Dict[str, List]:
+def parse_auair_anns(anns: Path | list[dict]) -> dict[str, list]:
     """Parse AU-AIR annotations from a Path or a list of annotation dictionaries."""
     boxes, labels = [], []
 
@@ -97,7 +96,7 @@ class AUAIRDataset(Dataset):
         self,
         details: Logger,
         root: str, split: str = "train",
-        transform: Optional[A.Compose] = None,
+        transform: A.Compose | None = None,
         download: bool = True, percentage: float = 1.0
     ) -> None:
         assert split in {"train", "val", "test"}
@@ -124,7 +123,7 @@ class AUAIRDataset(Dataset):
     def __len__(self) -> int:
         return len(self.images)
 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
         img_path = self.images[idx]
         ann_path = self.annotations[idx]
 

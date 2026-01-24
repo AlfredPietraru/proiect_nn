@@ -1,39 +1,32 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Tuple, Optional
-
 import torch
 
 from bbox.box_ops import box_iou
 
-
-EPS = 1e-6
-
+EPS: float = 1e-6
 
 @dataclass
 class PRStats:
     num_pred: int = 0
     num_gt: int = 0
-    values: Optional[Dict[str, float]] = None  # Precision, Recall, F1
+    values: dict[str, float] | None = None  # Precision, Recall, F1
 
-    def set(self, values: Dict[str, float]) -> None:
+    def set(self, values: dict[str, float]) -> None:
         self.values = values
 
 
 def collect_matches_single_thr(
-    pred_boxes_list: List[torch.Tensor],
-    pred_scores_list: List[torch.Tensor],
-    tgt_boxes_list: List[torch.Tensor],
-    iou_thr: float, score_thr: float,
-    st: PRStats,
-) -> Tuple[torch.Tensor, List[int]]:
-    all_scores: List[torch.Tensor] = []
-    all_match: List[int] = []
+    pred_boxes_list: list[torch.Tensor],
+    pred_scores_list: list[torch.Tensor],
+    tgt_boxes_list: list[torch.Tensor],
+    iou_thr: float, score_thr: float, st: PRStats
+) -> tuple[torch.Tensor, list[int]]:
+    all_scores: list[torch.Tensor] = []
+    all_match: list[int] = []
 
-    for pred_boxes, pred_scores, tgt_boxes in zip(
-        pred_boxes_list, pred_scores_list, tgt_boxes_list
-    ):
+    for pred_boxes, pred_scores, tgt_boxes in zip(pred_boxes_list, pred_scores_list, tgt_boxes_list):
         st.num_gt += int(tgt_boxes.size(0))
 
         if pred_boxes.numel() == 0:
@@ -76,10 +69,10 @@ def collect_matches_single_thr(
 
 
 def pr_for_class(
-    pred_boxes_list: List[torch.Tensor],
-    pred_scores_list: List[torch.Tensor],
-    tgt_boxes_list: List[torch.Tensor],
-    score_thr: float, iou_thr: float = 0.5,
+    pred_boxes_list: list[torch.Tensor],
+    pred_scores_list: list[torch.Tensor],
+    tgt_boxes_list: list[torch.Tensor],
+    score_thr: float, iou_thr: float = 0.5
 ) -> PRStats:
     st = PRStats(values=None)
 

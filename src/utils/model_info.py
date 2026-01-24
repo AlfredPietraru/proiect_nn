@@ -1,16 +1,12 @@
 from __future__ import annotations
-from __future__ import print_function
 
+from typing import Callable
 import os
-from typing import Callable, Optional
-
 import numpy as np
-
 import torch
 from torch import nn
-import torch.nn.functional as F
 from torch.utils import data
-
+import torch.nn.functional as F
 import matplotlib.pyplot as plt
 import matplotlib.figure as fig
 from loguru import logger
@@ -18,10 +14,8 @@ from loguru import logger
 
 def plot_dists(
     values: dict[str, np.ndarray],
-    xlabel: Optional[str],
-    bins: int = 30, density: bool = False,
-    out_dir: str = "output",
-    file_name: str = "distributions.png",
+    xlabel: None | str = None, bins: int = 30, density: bool = False,
+    out_dir: str = "output", file_name: str = "distributions.png"
 ) -> fig.Figure:
     """
     Histogram distribution plotter for multiple sets of values.
@@ -97,11 +91,7 @@ def plot_dists(
     return fig
 
 
-def visualize_weight_distribution(
-    model: nn.Module,
-    out_dir: str = "output",
-    file_name: str = "weights.png"
-) -> None:
+def visualize_weight_distribution(model: nn.Module, out_dir: str = "output", file_name: str = "weights.png") -> None:
     """
     Visualize the weight distribution of all trainable parameters in the model,
     excluding biases, and save the plot to the specified output directory.
@@ -126,7 +116,7 @@ def visualize_weight_distribution(
 
 def visualize_gradients(
     model: nn.Module, train_set: data.Dataset,
-    batch_size: int = 256, device: Optional[torch.device] = None,
+    batch_size: int = 256, device: None | torch.device = None,
     out_dir: str = "output", file_name: str = "gradients.png"
 ) -> None:
     """
@@ -207,9 +197,8 @@ def visualize_gradients(
 
 
 def visualize_activations(
-    model: nn.Module,
-    train_set: data.Dataset,
-    device: Optional[torch.device] = None,
+    model: nn.Module, train_set: data.Dataset,
+    device: None | torch.device = None,
     batch_size: int = 256, max_samples_per_layer: int = 100_000,
     out_dir: str = "output", file_name: str = "activations.png",
     print_variance: bool = False

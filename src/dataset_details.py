@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import os
-from typing import Dict, List, Tuple, Mapping
-
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
@@ -10,23 +8,20 @@ import torch.nn.functional as F
 import matplotlib.pyplot as plt
 
 from data.datasets.config import ClassInfo
-from data.visualize import (
+from data import (
     plot_class_distribution, tsne_embeddings,
     plot_tsne_labels, plot_tsne_transf)
 
 
-def extract_class_names(classes: Mapping[int, ClassInfo]) -> List[str]:
+def extract_class_names(classes: dict[int, ClassInfo]) -> list[str]:
     """Extract class names from the classes mapping."""
     ids = sorted(classes.keys())
     return [classes[i].name for i in ids]
 
 
-def collect_detection_labels(
-    loader: DataLoader,
-    max_batches: int
-) -> np.ndarray:
+def collect_detection_labels(loader: DataLoader, max_batches: int) -> np.ndarray:
     """"Collect all object detection labels from the loader."""
-    labels: List[int] = []
+    labels: list[int] = []
 
     for bidx, (_, targets) in enumerate(loader):
         if bidx >= max_batches:
@@ -45,16 +40,12 @@ def collect_detection_labels(
     return np.asarray(labels, dtype=np.int64)
 
 
-def collect_image_level_labels(
-    loader: DataLoader, 
-    max_batches: int, max_images: int,
-    empty_label: int = -1
-) -> np.ndarray:
+def collect_image_level_labels(loader: DataLoader, max_batches: int, max_images: int, empty_label: int = -1) -> np.ndarray:
     """
     For t-SNE coloring we need ONE label per image.
     We take the first object label if present otherwise empty label.
     """
-    labels: List[int] = []
+    labels: list[int] = []
     for bidx, (_, targets_batch) in enumerate(loader):
         if bidx >= max_batches or len(labels) >= max_images:
             break
@@ -72,15 +63,12 @@ def collect_image_level_labels(
     return np.asarray(labels, dtype=np.int64)
 
 
-def images_to_embeddings(
-    images: List[torch.Tensor],
-    embed_hw: Tuple[int, int]
-) -> np.ndarray:
+def images_to_embeddings(images: list[torch.Tensor], embed_hw: tuple[int, int]) -> np.ndarray:
     """
     Simple deterministic embedding: downsample -> flatten.
     images: list of (C,H,W) tensors.
     """
-    embs: List[np.ndarray] = []
+    embs: list[np.ndarray] = []
 
     for img in images:
         x = img.detach().float().cpu()
@@ -99,13 +87,9 @@ def images_to_embeddings(
     return X
 
 
-def collect_image_embeddings(
-    loader: DataLoader,
-    max_batches: int, max_images: int,
-    embed_hw: Tuple[int, int]
-) -> np.ndarray:
+def collect_image_embeddings(loader: DataLoader, max_batches: int, max_images: int, embed_hw: tuple[int, int]) -> np.ndarray:
     """Collect image embeddings by downsampling and flattening images from the loader."""
-    all_imgs: List[torch.Tensor] = []
+    all_imgs: list[torch.Tensor] = []
 
     for bidx, (images, _) in enumerate(loader):
         if bidx >= max_batches:
@@ -123,10 +107,10 @@ def collect_image_embeddings(
 
 
 def dataset_details(
-    data: Dict[str, DataLoader],
-    classes: Mapping[int, ClassInfo],
+    data: dict[str, DataLoader],
+    classes: dict[int, ClassInfo],
     max_batches: int = 50, max_images: int = 400, 
-    embed_hw: Tuple[int, int] = (32, 32),
+    embed_hw: tuple[int, int] = (32, 32),
     tsne_perplexity: float = 30.0, tsne_iter: int = 2000,
     seed: int = 42, show: bool = False, save_path: str = "images/details"
 ) -> None:

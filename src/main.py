@@ -1,12 +1,11 @@
 from __future__ import annotations
-from __future__ import absolute_import, division, print_function
 
 import warnings
 warnings.filterwarnings("ignore")
 
 import os  # noqa: E402
 import torch  # noqa: E402
-from typing import Optional, Tuple, cast  # noqa: E402
+from typing import cast  # noqa: E402
 
 from utils import Logger, set_seed  # noqa: E402
 
@@ -82,12 +81,7 @@ def ckpt_path(arch: str, epoch: int) -> str:
     return os.path.join(ckpt_dir(arch), f"checkpoint_epoch_{int(epoch)}.pth")
 
 
-def run_experiment(
-    cfg: ExperimentConfig,
-    logger: Logger,
-    teacher_arch: ArchName,
-    student_arch: Optional[ArchName] = None,
-) -> Tuple[str, str]:
+def run_experiment(cfg: ExperimentConfig, logger: Logger, teacher_arch: ArchName, student_arch: ArchName) -> tuple[str, str]:
     """
     Runs: Burn-in -> SSL -> KDD pipeline.
     Teacher and student architectures can be the same or different.

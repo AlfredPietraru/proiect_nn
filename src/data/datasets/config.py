@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Mapping, List, Dict
 import torch
 
 
@@ -15,7 +14,7 @@ class ClassInfo:
 # VOC (Pascal VOC 20 classes)
 # ids: 0..19
 # ----------------------------
-VOC_CLASSES: Mapping[int, ClassInfo] = {
+VOC_CLASSES: dict[int, ClassInfo] = {
     0: ClassInfo("aeroplane", "#FF6B6B"),
     1: ClassInfo("bicycle", "#4ECDC4"),
     2: ClassInfo("bird", "#FFD166"),
@@ -38,28 +37,28 @@ VOC_CLASSES: Mapping[int, ClassInfo] = {
     19: ClassInfo("tvmonitor", "#43AA8B"),
 }
 # Mapping from class name to class id for VOC
-VOC_NAME_TO_ID: Mapping[str, int] = {v.name: k for k, v in VOC_CLASSES.items()}
+VOC_NAME_TO_ID: dict[str, int] = {v.name: k for k, v in VOC_CLASSES.items()}
 
 
 # ----------------------------
 # UAVDT (4 classes from your stats)
 # ids: 1..4
 # ----------------------------
-UAVDT_CLASSES: Mapping[int, ClassInfo] = {
+UAVDT_CLASSES: dict[int, ClassInfo] = {
     1: ClassInfo("car", "#06D6A0"),
     2: ClassInfo("vehicle", "#118AB2"),
     3: ClassInfo("truck", "#FFD166"),
     4: ClassInfo("bus", "#EF476F"),
 }
 # Mapping from class name to class id for UAVDT
-UAVDT_NAME_TO_ID: Mapping[str, int] = {v.name: k for k, v in UAVDT_CLASSES.items()}
+UAVDT_NAME_TO_ID: dict[str, int] = {v.name: k for k, v in UAVDT_CLASSES.items()}
 
 
 # ----------------------------
 # VisDrone-DET (standard 10 classes)
 # ids: 1..10
 # ----------------------------
-VISDRONE_CLASSES: Mapping[int, ClassInfo] = {
+VISDRONE_CLASSES: dict[int, ClassInfo] = {
     1: ClassInfo("pedestrian", "#FF99C8"),
     2: ClassInfo("people", "#9B5DE5"),
     3: ClassInfo("bicycle", "#4ECDC4"),
@@ -72,14 +71,14 @@ VISDRONE_CLASSES: Mapping[int, ClassInfo] = {
     10: ClassInfo("motor", "#00F5D4"),
 }
 # Mapping from class name to class id for VisDrone
-VISDRONE_NAME_TO_ID: Mapping[str, int] = {v.name: k for k, v in VISDRONE_CLASSES.items()}
+VISDRONE_NAME_TO_ID: dict[str, int] = {v.name: k for k, v in VISDRONE_CLASSES.items()}
 
 
 # ----------------------------
 # AU-AIR (common road users / traffic)
 # ids: 1..8
 # ----------------------------
-AUAIR_CLASSES: Mapping[int, ClassInfo] = {
+AUAIR_CLASSES: dict[int, ClassInfo] = {
     1: ClassInfo("car", "#06D6A0"),
     2: ClassInfo("truck", "#FFD166"),
     3: ClassInfo("bus", "#EF476F"),
@@ -90,10 +89,10 @@ AUAIR_CLASSES: Mapping[int, ClassInfo] = {
     8: ClassInfo("other", "#118AB2"),
 }
 # Mapping from class name to class id for AU-AIR
-AUAIR_NAME_TO_ID: Mapping[str, int] = {v.name: k for k, v in AUAIR_CLASSES.items()}
+AUAIR_NAME_TO_ID: dict[str, int] = {v.name: k for k, v in AUAIR_CLASSES.items()}
 
 
-def make_target(boxes: List[List[float]], labels: List[int] | torch.Tensor) -> Dict[str, torch.Tensor]:
+def make_target(boxes: list[list[float]], labels: list[int] | torch.Tensor) -> dict[str, torch.Tensor]:
     if boxes is None:
         boxes = []
     if labels is None:

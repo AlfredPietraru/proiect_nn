@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import os
-from typing import Dict, List, Optional
-
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -12,15 +10,15 @@ sns.set_theme(style="whitegrid")
 
 
 class TrainingCurveSupervised:
-    def __init__(self, metrics: List[str]) -> None:
+    def __init__(self, metrics: list[str]) -> None:
         self.metrics = metrics
         self.history = {k: [] for k in metrics}
 
-    def update(self, epoch_metrics: Dict[str, float]) -> None:
+    def update(self, epoch_metrics: dict[str, float]) -> None:
         for k in self.metrics:
             self.history[k].append(float(epoch_metrics.get(k, 0.0)))
 
-    def plot_total(self, save_dir: str, show: bool = False, save_path: Optional[str] = None) -> None:
+    def plot_total(self, save_dir: str, show: bool = False, save_path: str | None = None) -> None:
         os.makedirs(save_dir, exist_ok=True)
         if "total" not in self.history:
             return
@@ -39,10 +37,11 @@ class TrainingCurveSupervised:
             save_figure(fig, save_path)
         if show:
             plt.show()
+        plt.close(fig)
 
 
 class TrainingCurveSemiSupervised:
-    def __init__(self, metrics_supervised: List[str], metrics_unsupervised: List[str]) -> None:
+    def __init__(self, metrics_supervised: list[str], metrics_unsupervised: list[str]) -> None:
         self.metrics_supervised = metrics_supervised
         self.metrics_unsupervised = metrics_unsupervised
 
@@ -51,13 +50,13 @@ class TrainingCurveSemiSupervised:
         # Unlabeled + labeled
         self.history_unsup = {k: [] for k in metrics_unsupervised}
         # Overall total loss
-        self.history_total_loss: List[float] = []
+        self.history_total_loss: list[float] = []
 
-    def update_supervised(self, metrics: Dict[str, float]) -> None:
+    def update_supervised(self, metrics: dict[str, float]) -> None:
         for k in self.metrics_supervised:
             self.history_sup[k].append(float(metrics.get(k, 0.0)))
 
-    def update_unsupervised(self, metrics: Dict[str, float]) -> None:
+    def update_unsupervised(self, metrics: dict[str, float]) -> None:
         for k in self.metrics_unsupervised:
             self.history_unsup[k].append(float(metrics.get(k, 0.0)))
 
@@ -66,7 +65,7 @@ class TrainingCurveSemiSupervised:
 
     def plot_losses(
         self, plot_components: bool,
-        save_dir: str, show: bool = False, save_path: Optional[str] = None
+        save_dir: str, show: bool = False, save_path: str | None = None
     ) -> None:
         os.makedirs(save_dir, exist_ok=True)
         fig, ax = plt.subplots(figsize=(10, 6))
@@ -100,8 +99,8 @@ class TrainingCurveSemiSupervised:
             plt.show()
 
     def plot_eval_metrics(
-        self, metrics: Dict[str, List[float]], 
-        save_dir: str, show: bool = False, save_path: Optional[str] = None
+        self, metrics: dict[str, list[float]], 
+        save_dir: str, show: bool = False, save_path: str | None = None
     ) -> None:
         os.makedirs(save_dir, exist_ok=True)
         fig, ax = plt.subplots(figsize=(10, 6))
@@ -122,3 +121,4 @@ class TrainingCurveSemiSupervised:
             save_figure(fig, save_path)
         if show:
             plt.show()
+        plt.close(fig)

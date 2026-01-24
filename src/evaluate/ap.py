@@ -1,23 +1,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Tuple, Optional
 
 import torch
 
 from bbox.box_ops import box_iou
 
-
-EPS = 1e-6
-
+EPS: float = 1e-6
 
 @dataclass
 class APStats:
     num_pred: int = 0
     num_gt: int = 0
-    values: Optional[Dict[float, float]] = None  # avg precision per IoU threshold
+    values: dict[float, float] | None = None  # avg precision per IoU threshold
 
-    def set(self, values: Dict[float, float]) -> None:
+    def set(self, values: dict[float, float]) -> None:
         self.values = values
 
     @staticmethod
@@ -44,15 +41,14 @@ class APStats:
 
 
 def collect_matches_multi_thr(
-    pred_boxes_list: List[torch.Tensor],
-    pred_scores_list: List[torch.Tensor],
-    tgt_boxes_list: List[torch.Tensor],
-    iou_thrs: Tuple[float, ...], score_thr: float,
+    pred_boxes_list: list[torch.Tensor],
+    pred_scores_list: list[torch.Tensor],
+    tgt_boxes_list: list[torch.Tensor],
+    iou_thrs: tuple[float, ...], score_thr: float,
     st: APStats
-) -> Tuple[torch.Tensor, Dict[float, List[int]]]:
-    all_scores: List[torch.Tensor] = []
-    all_match: Dict[float, List[int]] = {t: [] for t in iou_thrs}
-
+) -> tuple[torch.Tensor, dict[float, list[int]]]:
+    all_scores: list[torch.Tensor] = []
+    all_match: dict[float, list[int]] = {t: [] for t in iou_thrs}
     for pred_boxes, pred_scores, tgt_boxes in zip(
         pred_boxes_list, pred_scores_list, tgt_boxes_list
     ):
@@ -85,7 +81,7 @@ def collect_matches_multi_thr(
 
         for thr in iou_thrs:
             used_gt = set()
-            m_img: List[int] = []
+            m_img: list[int] = []
 
             for pi in range(n_pred):
                 max_iou, gi = ious[pi].max(dim=0)
@@ -104,10 +100,10 @@ def collect_matches_multi_thr(
 
 
 def ap_for_class(
-    pred_boxes_list: List[torch.Tensor],
-    pred_scores_list: List[torch.Tensor],
-    tgt_boxes_list: List[torch.Tensor],
-    iou_thrs: Tuple[float, ...], score_thr: float
+    pred_boxes_list: list[torch.Tensor],
+    pred_scores_list: list[torch.Tensor],
+    tgt_boxes_list: list[torch.Tensor],
+    iou_thrs: tuple[float, ...], score_thr: float
 ) -> APStats:
     st = APStats(values=None)
 

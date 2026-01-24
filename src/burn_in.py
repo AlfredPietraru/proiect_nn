@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-from typing import Dict, List
 import os
 import numpy as np
-
 from torch.utils.data import DataLoader, Dataset
 import torch
 from tqdm import tqdm
@@ -31,9 +29,9 @@ def train_burn_in_one_epoch(
     model: torch.nn.Module,
     optimizer: torch.optim.Optimizer,
     scheduler: torch.optim.lr_scheduler._LRScheduler,
-    data: Dict[str, DataLoader], device: torch.device,
-    max_iter: int, metric_keys: List[str]
-) -> Dict[str, float]:
+    data: dict[str, DataLoader], device: torch.device,
+    max_iter: int, metric_keys: list[str]
+) -> dict[str, float]:
     model.train()
     history = {k: 0.0 for k in metric_keys}
     steps = 0
@@ -66,8 +64,8 @@ def train_burn_in_one_epoch(
     return mean_history(history, steps)
 
 
-def collect_labels_from_det_dataset(ds: Dataset, max_samples: int) -> List[int]:
-    y: List[int] = []
+def collect_labels_from_det_dataset(ds: Dataset, max_samples: int) -> list[int]:
+    y: list[int] = []
     for i in range(min(len(ds), int(max_samples))):
         item = ds[i]
         if not isinstance(item, (tuple, list)) or len(item) < 2:
@@ -137,8 +135,8 @@ def confusion_from_loader(
 
 
 def pipeline_burn_in(
-    cfg: ExperimentConfig, data: Dict[str, DataLoader],
-    device: torch.device, metric_keys: List[str],
+    cfg: ExperimentConfig, data: dict[str, DataLoader],
+    device: torch.device, metric_keys: list[str],
     save_path: str = "images/burn_in"
 ) -> None:
     model = build_model(cfg=cfg).to(device)

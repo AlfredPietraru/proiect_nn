@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Tuple, Optional, Sequence, Mapping, Any, cast
-
+from typing import Any, cast
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
@@ -14,15 +13,14 @@ from data.datasets.config import ClassInfo
 from bbox.box_ops import BoxList
 from data.visualize.visualize_common import (
     to_numpy_image, to_numpy_boxes_xyxy,
-    as_list, get_info, save_figure
-)
+    as_list, get_info, save_figure)
 
 sns.set_theme(style="whitegrid")
 
 
-def legend_handles(classes: Mapping[int, ClassInfo], used: set[int]) -> List[Patch]:
+def legend_handles(classes: dict[int, ClassInfo], used: set[int]) -> list[Patch]:
     """Create legend handles for used class IDs."""
-    handles: List[Patch] = []
+    handles: list[Patch] = []
     for cid in sorted(used):
         info = get_info(classes, int(cid))
         handles.append(Patch(
@@ -35,9 +33,9 @@ def legend_handles(classes: Mapping[int, ClassInfo], used: set[int]) -> List[Pat
 def draw_boxes_on_ax(
     ax: Axes, H: int, W: int,
     boxes: Any,
-    labels: Optional[Any],
-    scores: Optional[Any],
-    classes: Optional[Mapping[int, ClassInfo]] = None,
+    labels: Any | None,
+    scores: Any | None,
+    classes: dict[int, ClassInfo] | None = None,
     conf_thr: float = 0.0,
 ) -> set[int]:
     """Draw (xyxy) boxes on an existing axis. Returns the set of used class IDs."""
@@ -90,12 +88,12 @@ def draw_boxes_on_ax(
 
 
 def draw_bbox(
-    image: np.ndarray, boxes: BoxList, labels: Sequence[int],
-    scores: Optional[Sequence[float]], classes: Mapping[int, ClassInfo] = {},
-    conf_thr: float = 0.5, ax: Optional[Axes] = None,
-    title: str = "BBoxes", figsize: Tuple[int, int] = (12, 8),
-    show: bool = True,  save_path: Optional[str] = None
-) -> Tuple[Figure, Axes, set[int]]:
+    image: np.ndarray, boxes: BoxList, labels: list[int],
+    scores: list[float] | None, classes: dict[int, ClassInfo] = {},
+    conf_thr: float = 0.5, ax: Axes | None = None,
+    title: str = "BBoxes", figsize: tuple[int, int] = (12, 8),
+    show: bool = True,  save_path: str | None = None
+) -> tuple[Figure, Axes, set[int]]:
     """Draw bounding boxes on a single image."""
     if ax is None:
         fig, ax = plt.subplots(1, 1, figsize=figsize)
@@ -144,21 +142,21 @@ def set_status_border(ax: Axes, ok: bool | None) -> str:
 
 def detect_grid(
     images: torch.Tensor,
-    boxes: Sequence[BoxList],
-    labels: Optional[Sequence[Any]],
-    scores: Optional[Sequence[Any]],
-    classes: Optional[Mapping[int, ClassInfo]],
-    mean: Optional[Sequence[float]],
-    std: Optional[Sequence[float]],
-    pred_status: Optional[Sequence[bool]],
-    titles: Optional[Sequence[str]],
+    boxes: list[BoxList],
+    labels: list[Any] | None,
+    scores: list[Any] | None,
+    classes: dict[int, ClassInfo] | None,
+    mean: list[float] | None,
+    std: list[float] | None,
+    pred_status: list[bool] | None,
+    titles: list[str] | str | None, 
     conf_thr: float = 0.0,
     grid_title: str = "Detection Grid",
     cols: int = 4,
-    figsize_per_cell: Tuple[float, float] = (3.3, 3.3),
+    figsize_per_cell: tuple[float, float] = (3.3, 3.3),
     show: bool = True,
-    save_path: Optional[str] = None,
-) -> Tuple[Figure, np.ndarray]:
+    save_path: str | None = None,
+) -> tuple[Figure, np.ndarray]:
     B = int(images.size(0))
     if B == 0:
         raise ValueError("Empty batch: images tensor has zero length.")
@@ -195,20 +193,13 @@ def detect_grid(
 
         used = draw_boxes_on_ax(
             ax, H, W,
-            boxes[i],
-            labels_seq[i],
-            scores_seq[i],
-            classes=classes,
-            conf_thr=conf_thr,
-        )
+            boxes[i], labels_seq[i], scores_seq[i],
+            classes=classes, conf_thr=conf_thr)
 
         if used and classes is not None:
             ax.legend(
                 handles=legend_handles(classes, used),
-                loc="upper right",
-                fontsize=7,
-                framealpha=0.9,
-            )
+                loc="upper right", fontsize=7, framealpha=0.9)
 
     for j in range(B, len(axes)):
         axes[j].axis("off")

@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 import random
-from typing import Dict, List, Optional, Tuple
-
 import albumentations as A
 import cv2
 import torch
@@ -14,13 +12,13 @@ from data.datasets.download import download_uavdt
 from utils.logger import Logger
 
 
-def find_uavdt_pairs(root: Path, split: str, percentage: float = 1.0) -> Tuple[List[Path], List[Path]]:
+def find_uavdt_pairs(root: Path, split: str, percentage: float = 1.0) -> tuple[list[Path], list[Path]]:
     """Find UAVDT image and annotation file pairs."""
     img_dir = root / "images" / split
     ann_dir = root / "labels" / split
 
-    images: List[Path] = []
-    annots: List[Path] = []
+    images: list[Path] = []
+    annots: list[Path] = []
 
     if not img_dir.exists() or not ann_dir.exists():
         return images, annots

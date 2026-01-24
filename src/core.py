@@ -1,18 +1,18 @@
 from __future__ import annotations
 
-from typing import Dict, List, Any, Tuple
+from typing import Any
 import torch
 from torch.utils.data import Dataset, DataLoader
 
 from utils import pick_workers
 
 
-def move_images_to_device(images: List[torch.Tensor], device: torch.device) -> List[torch.Tensor]:
+def move_images_to_device(images: list[torch.Tensor], device: torch.device) -> list[torch.Tensor]:
     """Move image tensors to device."""
     return [img.to(device, non_blocking=True) for img in images]
 
 
-def move_targets_to_device(targets: List[dict], device: torch.device) -> List[dict]:
+def move_targets_to_device(targets: list[dict], device: torch.device) -> list[dict]:
     """Move target dicts to device."""
     for t in targets:
         t["boxes"] = t["boxes"].to(device, non_blocking=True)
@@ -22,13 +22,13 @@ def move_targets_to_device(targets: List[dict], device: torch.device) -> List[di
     return targets
 
 
-def mean_history(history: Dict[str, float], steps: int) -> Dict[str, float]:
+def mean_history(history: dict[str, float], steps: int) -> dict[str, float]:
     """Mean the history values over the number of steps."""
     denom = max(1, steps)
     return {k: v / denom for k, v in history.items()}
 
 
-def collate_clone_images(batch: List[Any]) -> Tuple[torch.Tensor, List[Any]]:
+def collate_clone_images(batch: list[Any]) -> tuple[torch.Tensor, list[Any]]:
     """
     Collate (img, target) items.
     - clones images to ensure resizable storage for stacking
@@ -36,7 +36,7 @@ def collate_clone_images(batch: List[Any]) -> Tuple[torch.Tensor, List[Any]]:
     """
     images, targets = zip(*batch)
 
-    imgs_out: List[torch.Tensor] = []
+    imgs_out: list[torch.Tensor] = []
     for im in images:
         if not torch.is_tensor(im):
             im = torch.as_tensor(im)
@@ -51,7 +51,7 @@ def collate_clone_images(batch: List[Any]) -> Tuple[torch.Tensor, List[Any]]:
     return torch.stack(imgs_out, dim=0), list(targets)
 
 
-def stats_mean_std(dataset: Dataset, max_samples: int = 3000) -> Tuple[List[float], List[float]]:
+def stats_mean_std(dataset: Dataset, max_samples: int = 3000) -> tuple[list[float], list[float]]:
     """Mean and standard deviation calculation for image datasets."""
     loader = DataLoader(
         dataset, batch_size=64, shuffle=False,

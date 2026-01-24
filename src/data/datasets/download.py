@@ -1,10 +1,9 @@
 from __future__ import annotations
 
+from typing import Callable
 from pathlib import Path
-from typing import Callable, Tuple
 import zipfile
 import subprocess
-
 import gdown
 import dataset_tools as dtools
 
@@ -130,7 +129,7 @@ def download_dataset_supervisely(
 def download_voc(
     dst_dir: str | Path,
     details: Logger,
-    years: Tuple[str, ...],
+    years: tuple[str, ...],
     force: bool = False,
 ) -> None:
     """

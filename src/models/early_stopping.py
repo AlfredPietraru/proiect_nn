@@ -1,7 +1,6 @@
 from __future__ import annotations
-from __future__ import print_function
 
-from typing import Any, Optional, cast
+from typing import Any, cast
 import copy
 from loguru import logger
 
@@ -11,11 +10,7 @@ import torch.nn as nn
 
 
 class EarlyStopping:
-    def __init__(
-        self,
-        patience: int = 4, min_delta: float = 1e-3, 
-        mode: str = "min", verbose: bool = True
-    ) -> None:
+    def __init__(self, patience: int = 4, min_delta: float = 1e-3, mode: str = "min", verbose: bool = True) -> None:
         assert mode in ("min", "max"), "Mode must be 'min' or 'max'"
 
         self.patience = patience
@@ -23,11 +18,11 @@ class EarlyStopping:
         self.mode = mode
         self.verbose = verbose
 
-        self.best_value: Optional[float] = None
-        self.best_epoch: Optional[int] = None
+        self.best_value: float | None = None
+        self.best_epoch: int | None = None
         self.counter: int = 0
         self.early_stop: bool = False
-        self.best_model_state: Optional[dict[str, Any]] = None
+        self.best_model_state: dict[str, Any] | None = None
 
     def is_improvement(self, value: float) -> bool:
         if self.best_value is None:
@@ -38,7 +33,7 @@ class EarlyStopping:
 
         return value > (self.best_value + self.min_delta)
 
-    def __call__(self, value: float, model: Any, epoch: int | None = None) -> None:
+    def __call__(self, value: float, model: Any, epoch: int | None) -> None:
         if value is None or (isinstance(value, float) and (math.isnan(value) or math.isinf(value))):
             if self.verbose:
                 logger.info("Early stopping received NaN/Inf metric, stopping training.")
@@ -56,8 +51,7 @@ class EarlyStopping:
                 state = cast(dict[str, Any], model.state_dict())
                 self.best_model_state = {
                     k: (v.detach().cpu().clone() if torch.is_tensor(v) else copy.deepcopy(v))
-                    for k, v in state.items()
-                }
+                    for k, v in state.items()}
 
             if self.verbose:
                 msg = f"Early stopping detected new best {self.mode} value = {self.best_value:.6f}"

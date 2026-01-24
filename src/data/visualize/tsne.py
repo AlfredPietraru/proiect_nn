@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-from typing import List, Tuple, Optional
-
 import numpy as np
 from sklearn.manifold import TSNE
-from matplotlib import cm as mpl_cm
-import matplotlib.pyplot as plt
 import seaborn as sns
+import matplotlib.pyplot as plt
+from matplotlib import cm as mpl_cm
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
 from matplotlib.lines import Line2D
@@ -36,11 +34,11 @@ def tsne_embeddings(
 def plot_tsne_labels(
     sup_train_2d: np.ndarray, sup_test_2d: np.ndarray,
     sup_train_labels: np.ndarray, sup_test_labels: np.ndarray,
-    class_names: List[str], num_classes: Optional[int] = None,
-    s_train: int = 40, s_test: int = 60, figsize: Tuple[int, int] = (10, 8),
+    class_names: list[str], num_classes: int | None = None,
+    s_train: int = 40, s_test: int = 60, figsize: tuple[int, int] = (10, 8),
     title: str = "Supervised CNN Repr (t-SNE)\n(train=o, test=x)",
-    show: bool = True, save_path: Optional[str] = None
-) -> Tuple[Figure, Axes]:
+    show: bool = True, save_path: str | None = None
+) -> tuple[Figure, Axes]:
     sup_train_2d = np.asarray(sup_train_2d)
     sup_test_2d = np.asarray(sup_test_2d)
     sup_train_labels = np.asarray(sup_train_labels).astype(np.int64, copy=False)
@@ -113,12 +111,12 @@ def plot_tsne_labels(
 def plot_tsne_transf(
     train_2d: np.ndarray, test_2d: np.ndarray,
     train_labels: np.ndarray, test_labels: np.ndarray,
-    class_names: List[str], num_classes: Optional[int] = None,
-    figsize: Tuple[int, int] = (14, 6), s: int = 50, alpha: float = 0.7,
+    class_names: list[str], num_classes: int | None = None,
+    figsize: tuple[int, int] = (14, 6), s: int = 50, alpha: float = 0.7,
     title_train: str = "Semi-Supervised Repr (Train)",
     title_test: str = "Semi-Supervised Repr (Test)",
-    show: bool = True, save_path: Optional[str] = None
-) -> Tuple[Figure, np.ndarray]:
+    show: bool = True, save_path: str | None = None
+) -> tuple[Figure, np.ndarray]:
     train_2d = np.asarray(train_2d)
     test_2d = np.asarray(test_2d)
     train_labels = np.asarray(train_labels)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import copy
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 import torch
 import torch.nn as nn
@@ -18,7 +18,7 @@ class EMA:
     def __init__(
         self,
         teacher_model: nn.Module, decay: float = 0.9996, 
-        init_from: Optional[nn.Module] = None, adaptive: bool = False, 
+        init_from: nn.Module | None = None, adaptive: bool = False, 
         alpha_min: float = 0.99, alpha_max: float = 0.9999
     ) -> None:
         if not (0.0 <= decay < 1.0):
@@ -42,18 +42,14 @@ class EMA:
     def model(self) -> nn.Module:
         return self.ema
 
-    def resolve_alpha(self, conf_mean: Optional[float]) -> float:
+    def resolve_alpha(self, conf_mean: float | None) -> float:
         if not self.adaptive or conf_mean is None:
             return self.decay
         c = float(max(0.0, min(1.0, conf_mean)))
         return self.alpha_min + (self.alpha_max - self.alpha_min) * c
 
     @torch.no_grad()
-    def update(
-        self,
-        student_model: nn.Module,
-        conf_mean: Optional[float] = None
-    ) -> Tuple[int, int, int]:
+    def update(self, student_model: nn.Module, conf_mean: float | None) -> tuple[int, int, int]:
         student = unwrap_model(student_model)
 
         ema_sd = self.ema.state_dict()
@@ -62,9 +58,7 @@ class EMA:
         alpha = self.resolve_alpha(conf_mean)
         one_minus = 1.0 - alpha
 
-        updated = 0
-        missing = 0
-        shape_mismatch = 0
+        updated, missing, shape_mismatch = 0, 0, 0
 
         for k, ema_v in ema_sd.items():
             stu_v = stu_sd.get(k, None)
@@ -77,27 +71,24 @@ class EMA:
 
             if ema_v.dtype.is_floating_point and stu_v.dtype.is_floating_point:
                 ema_v.mul_(alpha).add_(
-                    stu_v.detach().to(ema_v.device, dtype=ema_v.dtype),
+                    stu_v.detach().to(ema_v.device, ema_v.dtype),
                     alpha=one_minus)
             else:
                 ema_v.copy_(
-                    stu_v.detach().to(ema_v.device, dtype=ema_v.dtype))
+                    stu_v.detach().to(ema_v.device, ema_v.dtype))
 
             updated += 1
 
         self.ema.load_state_dict(ema_sd, strict=False)
         return updated, missing, shape_mismatch
 
-    def state_dict(self) -> Dict[str, Any]:
+    def state_dict(self) -> dict[str, Any]:
         return {
-            "decay": self.decay,
-            "adaptive": self.adaptive,
-            "alpha_min": self.alpha_min,
-            "alpha_max": self.alpha_max,
-            "ema": self.ema.state_dict()
-        }
+            "decay": self.decay, "adaptive": self.adaptive,
+            "alpha_min": self.alpha_min, "alpha_max": self.alpha_max,
+            "ema": self.ema.state_dict()}
 
-    def load_state_dict(self, sd: Dict[str, Any]) -> None:
+    def load_state_dict(self, sd: dict[str, Any]) -> None:
         self.decay = float(sd.get("decay", self.decay))
         self.adaptive = bool(sd.get("adaptive", self.adaptive))
         self.alpha_min = float(sd.get("alpha_min", self.alpha_min))
@@ -113,5 +104,5 @@ class EMA:
             sv = src_sd.get(k, None)
             if sv is None or sv.shape != v.shape:
                 continue
-            v.copy_(sv.detach().to(v.device, dtype=v.dtype))
+            v.copy_(sv.detach().to(v.device, v.dtype))
         dst.load_state_dict(dst_sd, strict=False)

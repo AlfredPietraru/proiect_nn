@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
-
-import torch
+from torch import Tensor
 import torch.nn as nn
 from torchvision.models import ResNet50_Weights, resnet50
 
@@ -11,9 +9,10 @@ class ResNet50Backbone(nn.Module):
     def __init__(
         self,
         num_classes: int,
-        weights: Optional[ResNet50_Weights] = ResNet50_Weights.IMAGENET1K_V2,
-        freeze_backbone: bool = False,
-        target: str = "layer4[-1]",
+        weights: ResNet50_Weights | None = ResNet50_Weights.IMAGENET1K_V2,
+        # Layer 4 - best for obtaining larger receptive field CAMs for object detection
+        # Layer 3 - better for smaller objects (discussed in Grad-CAM++ paper)
+        freeze_backbone: bool = False, target: str = "layer4[-1]"  # layer3[-1], layer4[-1].conv3, layer4[-1].relu
     ) -> None:
         super().__init__()
 
@@ -39,7 +38,7 @@ class ResNet50Backbone(nn.Module):
 
         raise ValueError("Bad target. Use: layer4[-1], layer4[-1].conv3, layer4[-1].relu")
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: Tensor) -> Tensor:
         if x.ndim != 4:
             raise ValueError("Input must be NCHW")
         return self.model(x)

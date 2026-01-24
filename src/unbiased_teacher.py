@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import os
-from typing import Dict, List, Tuple
-
 import numpy as np
 import torch
 from torch import Tensor
@@ -29,12 +27,12 @@ from data import (
 from evaluate import DetectionMetrics, IoUMetrics
 
 
-def top_k_per_class(boxes: Tensor, labels: Tensor, scores: Tensor, k: int) -> Tuple[Tensor, Tensor, Tensor]:
+def top_k_per_class(boxes: Tensor, labels: Tensor, scores: Tensor, k: int) -> tuple[Tensor, Tensor, Tensor]:
     """Keep top-k scoring boxes per class."""
     if k is None:
         return boxes, labels, scores
     # Keep top-k scoring boxes per class
-    keep_idx: List[Tensor] = []
+    keep_idx: list[Tensor] = []
     for cls in labels.unique():
         # Get indices of boxes for this class and their scores
         cls_idx = (labels == cls).nonzero(as_tuple=False).squeeze(1)
@@ -52,7 +50,7 @@ def top_k_per_class(boxes: Tensor, labels: Tensor, scores: Tensor, k: int) -> Tu
     return boxes[keep], labels[keep], scores[keep]
 
 
-def top_k_total(boxes: Tensor, labels: Tensor, scores: Tensor, k: int) -> Tuple[Tensor, Tensor, Tensor]:
+def top_k_total(boxes: Tensor, labels: Tensor, scores: Tensor, k: int) -> tuple[Tensor, Tensor, Tensor]:
     """Keep top-k scoring boxes total (regardless of class)."""
     if k is None or scores.numel() <= k:
         return boxes, labels, scores
@@ -62,18 +60,16 @@ def top_k_total(boxes: Tensor, labels: Tensor, scores: Tensor, k: int) -> Tuple[
 
 @torch.no_grad()
 def generate_pseudo_labels(
-    model: torch.nn.Module,
-    images: List[Tensor],
-    device: torch.device,
-    score_thr: float, nms_iou: float,
-    top_k_per_cls: int = 60, # per-class candidates before NMS
-    top_k_total_pre: int = 600, # total candidates per image before NMS
-    top_k_total_post: int = 300 # final max per image after NMS
-) -> List[Dict[str, Tensor]]:
+    model: torch.nn.Module, images: list[Tensor],
+    device: torch.device, score_thr: float, nms_iou: float,
+    top_k_per_cls: int = 60,  # per-class candidates before NMS
+    top_k_total_pre: int = 600,  # total candidates per image before NMS
+    top_k_total_post: int = 300  # final max per image after NMS
+) -> list[dict[str, Tensor]]:
     model.eval()
     images = move_images_to_device(images, device)
     outputs, _ = model(images, None)
-    pseudo: List[Dict[str, Tensor]] = []
+    pseudo: list[dict[str, Tensor]] = []
     for out in outputs:
         boxes, labels, scores = out["boxes"], out["labels"], out["scores"]
         # Early exit if no boxes at all
@@ -102,7 +98,7 @@ def generate_pseudo_labels(
     return pseudo
 
 
-def filter_nonempty_pseudo(pseudo: List[Dict[str, Tensor]]) -> Tuple[List[Dict[str, Tensor]], List[int]]:
+def filter_nonempty_pseudo(pseudo: list[dict[str, Tensor]]) -> tuple[list[dict[str, Tensor]], list[int]]:
     """Filter out images with no pseudo boxes, return kept pseudo and their indices."""
     keep_idx = [i for i, t in enumerate(pseudo) if t["boxes"].numel() > 0]
     kept = [pseudo[i] for i in keep_idx]  # Keep only pseudo-labels with non-empty boxes
@@ -110,7 +106,7 @@ def filter_nonempty_pseudo(pseudo: List[Dict[str, Tensor]]) -> Tuple[List[Dict[s
     return kept, keep_idx
 
 
-def sum_loss(loss_dict: Dict[str, Tensor], keys: List[str]) -> Tensor:
+def sum_loss(loss_dict: dict[str, Tensor], keys: list[str]) -> Tensor:
     acc = None
     for k in keys:
         if k in loss_dict:
@@ -124,10 +120,10 @@ def sum_loss(loss_dict: Dict[str, Tensor], keys: List[str]) -> Tensor:
 def train_semi_supervised_one_epoch(
     teacher: EMA, student: torch.nn.Module,  # teacher is wrapped with EMA
     optimizer: torch.optim.Optimizer, scheduler: torch.optim.lr_scheduler._LRScheduler,
-    data: Dict[str, DataLoader], device: torch.device,  max_iter: int,
+    data: dict[str, DataLoader], device: torch.device,  max_iter: int,
     lambda_unsup: float, score_thr: float, nms_iou: float,
-    metric_sup: List[str], metric_unsup: List[str]
-) -> Tuple[Dict[str, float], Dict[str, float], float]:
+    metric_sup: list[str], metric_unsup: list[str]
+) -> tuple[dict[str, float], dict[str, float], float]:
     student.train()
 
     hist_sup = {k: 0.0 for k in metric_sup}
@@ -206,7 +202,7 @@ def validate_semi_supervised(
     student: torch.nn.Module, dt_test: DataLoader,
     device: torch.device, cfg_metrics: IoUMetrics,
     max_iter: int = 3000, nms_iou: float = 0.5
-) -> Tuple[Dict[str, float], float]:
+) -> tuple[dict[str, float], float]:
     student.eval()
 
     metrics = DetectionMetrics(cfg_metrics)
@@ -226,8 +222,8 @@ def validate_semi_supervised(
         if loss_dict:
             loss_sum += sum(v.item() for v in loss_dict.values())
 
-        preds_bl: List[BoxList] = []
-        tgts_bl: List[BoxList] = []
+        preds_bl: list[BoxList] = []
+        tgts_bl: list[BoxList] = []
 
         # Checking for each image in the batch the predictions and targets
         for img, out, tgt in zip(images, outputs, targets):
@@ -258,8 +254,8 @@ def validate_semi_supervised(
 
 def pipeline_semi_supervised(
     cfg: ExperimentConfig, checkpoint_path: str,
-    data: Dict[str, DataLoader], device: torch.device,
-    metric_sup: List[str], metric_unsup: List[str]
+    data: dict[str, DataLoader], device: torch.device,
+    metric_sup: list[str], metric_unsup: list[str]
 ) -> None:
     # Student - initialize model from checkpoint from burn-in stage
     # Load burn-in checkpoint into student model
@@ -316,7 +312,7 @@ def pipeline_semi_supervised(
         # Checking student performance on validation set after this epoch
         val_hist, val_loss = validate_semi_supervised(
             student=student, dt_test=data["test"], device=device,
-            cfg_metrics=cfg_metrics, max_iter=3000, nms_iou=0.5)
+            cfg_metrics=cfg_metrics, max_iter=3000, nms_iou=cfg.ssl.match_iou_thr)
 
         early_stopping(value=val_loss, model=student, epoch=epoch + 1)
         # Plottng current training/validation metrics after this epoch
@@ -463,7 +459,7 @@ def pipeline_semi_supervised(
 
             # For Grad-CAM models, perform bbox evaluation at each checkpoint
             if cfg.model.arch == "resnet_gradcam":
-                metrics: Dict[str, float] = {}
+                metrics: dict[str, float] = {}
                 if hasattr(data["val"], "dataset"):
                     val_set = data["val"].dataset
                     metrics = evaluate_cam_bboxes(

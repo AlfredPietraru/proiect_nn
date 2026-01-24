@@ -1,33 +1,29 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Tuple
-
 import torch
+from torch import Tensor
 
 from .box_utils import box_area
 from .points import AnchorPoints
 
-EPS = 1e-6
+EPS: float = 1e-6
 
 
 @dataclass
 class PointList:
-    points: torch.Tensor
-    labels: torch.Tensor
-    scores: Optional[torch.Tensor]
-    image_size: Tuple[int, int]
+    points: Tensor
+    labels: Tensor
+    scores: Tensor | None
+    image_size: tuple[int, int]
 
-    def to(self, device) -> "PointList":
+    def to(self, device) -> PointList:
         return PointList(
-            points=self.points.to(device),
-            labels=self.labels.to(device),
-            scores=self.scores.to(device) if self.scores is not None else None,
-            image_size=self.image_size,
-        )
+            image_size=self.image_size, points=self.points.to(device), labels=self.labels.to(device),
+            scores=self.scores.to(device) if self.scores is not None else None)
 
 
-def encode_ltrb(points: torch.Tensor, gt_boxes: torch.Tensor) -> torch.Tensor:
+def encode_ltrb(points: Tensor, gt_boxes: Tensor) -> Tensor:
     cx, cy = points[:, 0], points[:, 1]
     left = cx - gt_boxes[:, 0]
     top = cy - gt_boxes[:, 1]
@@ -36,7 +32,7 @@ def encode_ltrb(points: torch.Tensor, gt_boxes: torch.Tensor) -> torch.Tensor:
     return torch.stack((left, top, right, bottom), dim=1)
 
 
-def decode_ltrb(points: torch.Tensor, ltrb: torch.Tensor) -> torch.Tensor:
+def decode_ltrb(points: Tensor, ltrb: Tensor) -> Tensor:
     cx, cy = points[:, 0], points[:, 1]
     x1 = cx - ltrb[:, 0]
     y1 = cy - ltrb[:, 1]
@@ -46,10 +42,9 @@ def decode_ltrb(points: torch.Tensor, ltrb: torch.Tensor) -> torch.Tensor:
 
 
 def points_to_pointlist(
-    points: AnchorPoints | torch.Tensor,
-    scores: torch.Tensor,
-    labels: torch.Tensor,
-    image_size: Optional[Tuple[int, int]] = None,
+    points: AnchorPoints | Tensor,
+    scores: Tensor, labels: Tensor,
+    image_size: tuple[int, int] | None = None
 ) -> PointList:
     if torch.is_tensor(points):
         if image_size is None:
@@ -63,22 +58,18 @@ def points_to_pointlist(
     return PointList(points=pts, scores=scores, labels=labels, image_size=imsz)
 
 
-def filter_points_by_image_labels(pointlist: PointList, image_labels: torch.Tensor) -> PointList:
+def filter_points_by_image_labels(pointlist: PointList, image_labels: Tensor) -> PointList:
     present = torch.nonzero(image_labels > 0).squeeze(1)
     mask = torch.isin(pointlist.labels, present.to(pointlist.labels.device))
     return PointList(
-        points=pointlist.points[mask],
-        scores=pointlist.scores[mask] if pointlist.scores is not None else None,
-        labels=pointlist.labels[mask],
-        image_size=pointlist.image_size,
-    )
+        image_size=pointlist.image_size, points=pointlist.points[mask], labels=pointlist.labels[mask],
+        scores=pointlist.scores[mask] if pointlist.scores is not None else None)
 
 
 def match_points_to_gt(
-    points: torch.Tensor,   # (Np,2)
-    gt: PointList,          # (Ng)
-    allow_low_quality_matches: bool = True,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    points: Tensor, gt: PointList,  # (Np,2), gt with boxes (Ng,4)
+    allow_low_quality_matches: bool = True
+) -> tuple[Tensor, Tensor, Tensor]:
     if gt.points.numel() == 0:
         raise ValueError("No ground-truth boxes provided for matching.")
     if gt.points.ndim != 2 or gt.points.size(1) != 4:
@@ -100,7 +91,7 @@ def match_points_to_gt(
 
     inside = (px >= x1) & (px <= x2) & (py >= y1) & (py <= y2)  # (Np,Ng)
 
-    areas = box_area(gt_boxes).to(dtype=torch.float32)          # (Ng,)
+    areas = box_area(gt_boxes).to(torch.float32)          # (Ng,)
     cost = areas[None, :].expand(Np, Ng).clone()
     cost[~inside] = float("inf")
 
@@ -117,15 +108,15 @@ def match_points_to_gt(
 
         nearest_point_per_gt = dist2.argmin(dim=0)              # (Ng,)
         pos[nearest_point_per_gt] = True
-        matched[nearest_point_per_gt] = torch.arange(Ng, device=points.device)
+        matched[nearest_point_per_gt] = torch.arange(Ng, points.device)
 
-    labels = torch.zeros((Np,), dtype=torch.long, device=points.device)
+    labels = torch.zeros((Np,), torch.long, points.device)
     labels[pos] = gt_labels[matched[pos]]
 
     matched_inds = matched.clone()
     matched_inds[neg] = -1
 
-    targets = torch.zeros((Np, 4), device=points.device)
+    targets = torch.zeros((Np, 4), points.device)
     if pos.any():
         targets[pos] = encode_ltrb(points[pos], gt_boxes[matched[pos]])
 
@@ -135,7 +126,7 @@ def match_points_to_gt(
 def aggregate_points(
     pointlist: PointList,
     dist_thresh: float = 5.0,  # Distance threshold to consider points for merging
-    min_group_size: int = 1,  # Minimum number of points in a group to perform merging
+    min_group_size: int = 1    # Minimum number of points in a group to perform merging
 ) -> PointList:
     pts = pointlist.points
     labels = pointlist.labels
@@ -144,9 +135,9 @@ def aggregate_points(
     if pts.numel() == 0:
         return pointlist
     if scores is None:
-        scores = torch.ones((pts.size(0),), device=pts.device, dtype=torch.float32)
+        scores = torch.ones((pts.size(0),), pts.device, torch.float32)
     else:
-        scores = scores.to(dtype=torch.float32)
+        scores = scores.to(torch.float32)
 
     out_pts, out_scores, out_labels = [], [], []
 
@@ -162,7 +153,7 @@ def aggregate_points(
         p = p[order]
         s = s[order]
 
-        alive = torch.ones((p.size(0),), dtype=torch.bool, device=p.device)
+        alive = torch.ones((p.size(0),), torch.bool, p.device)
 
         for i in range(p.size(0)):
             if not alive[i]:
@@ -196,8 +187,5 @@ def aggregate_points(
 
     order = torch.argsort(out_scores, descending=True)
     return PointList(
-        points=out_pts[order],
-        scores=out_scores[order],
-        labels=out_labels[order],
-        image_size=pointlist.image_size,
-    )
+        points=out_pts[order], scores=out_scores[order], labels=out_labels[order],
+        image_size=pointlist.image_size)

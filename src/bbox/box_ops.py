@@ -1,37 +1,32 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Tuple
-
 import torch
+from torch import Tensor
 
 from .box_utils import box_iou
 from .boxes import AnchorBoxes
 
-EPS = 1e-6
-
+EPS: float = 1e-6
 
 @dataclass
 class BoxList:
-    boxes: torch.Tensor
-    labels: torch.Tensor
-    scores: Optional[torch.Tensor]
-    image_size: Tuple[int, int]
+    boxes: Tensor
+    labels: Tensor
+    scores: Tensor | None
+    image_size: tuple[int, int]
 
-    def to(self, device) -> "BoxList":
+    def to(self, device) -> BoxList:
         return BoxList(
-            boxes=self.boxes.to(device),
-            labels=self.labels.to(device),
-            scores=self.scores.to(device) if self.scores is not None else None,
-            image_size=self.image_size,
-        )
+            image_size=self.image_size, boxes=self.boxes.to(device), 
+            labels=self.labels.to(device), scores=self.scores.to(device) if self.scores is not None else None)
 
 
 def encode_boxes(
-    anchors: torch.Tensor,          # (N,4)
-    gt_boxes: torch.Tensor,         # (N,4)
-    weights: tuple[float, float, float, float] = (1.0, 1.0, 1.0, 1.0),
-) -> torch.Tensor:
+    anchors: Tensor,          # (N,4)
+    gt_boxes: Tensor,         # (N,4)
+    weights: tuple[float, float, float, float] = (1.0, 1.0, 1.0, 1.0)
+) -> Tensor:
     wx, wy, ww, wh = weights
 
     ax = (anchors[:, 0] + anchors[:, 2]) * 0.5
@@ -53,10 +48,10 @@ def encode_boxes(
 
 
 def decode_boxes(
-    anchors: torch.Tensor,          # (N,4)
-    deltas: torch.Tensor,           # (N,4)
-    weights: tuple[float, float, float, float] = (1.0, 1.0, 1.0, 1.0),
-) -> torch.Tensor:
+    anchors: Tensor,          # (N,4)
+    deltas: Tensor,           # (N,4)
+    weights: tuple[float, float, float, float] = (1.0, 1.0, 1.0, 1.0)
+) -> Tensor:
     wx, wy, ww, wh = weights
 
     ax = (anchors[:, 0] + anchors[:, 2]) * 0.5
@@ -82,10 +77,9 @@ def decode_boxes(
 
 
 def anchors_to_boxlist(
-    anchors: AnchorBoxes | torch.Tensor,
-    scores: torch.Tensor,
-    labels: torch.Tensor,
-    image_size: Optional[Tuple[int, int]] = None,
+    anchors: AnchorBoxes | Tensor,
+    scores: Tensor, labels: Tensor,
+    image_size: tuple[int, int] | None = None
 ) -> BoxList:
     if torch.is_tensor(anchors):
         if image_size is None:
@@ -99,24 +93,19 @@ def anchors_to_boxlist(
     return BoxList(boxes=boxes, scores=scores, labels=labels, image_size=imsz)
 
 
-def filter_by_image_labels(boxlist: BoxList, image_labels: torch.Tensor) -> BoxList:
+def filter_by_image_labels(boxlist: BoxList, image_labels: Tensor) -> BoxList:
     present = torch.nonzero(image_labels > 0).squeeze(1)
     mask = torch.isin(boxlist.labels, present.to(boxlist.labels.device))
     return BoxList(
-        boxes=boxlist.boxes[mask],
-        scores=boxlist.scores[mask] if boxlist.scores is not None else None,
-        labels=boxlist.labels[mask],
-        image_size=boxlist.image_size,
-    )
+        image_size=boxlist.image_size, boxes=boxlist.boxes[mask], labels=boxlist.labels[mask],
+        scores=boxlist.scores[mask] if boxlist.scores is not None else None)
 
 
 def match_anchors_to_gt(
-    anchors: torch.Tensor,      # (Na,4)
-    gt: BoxList,                # (Ng)
-    high_thresh: float = 0.95,
-    low_thresh: float = 0.05,
-    allow_low_quality_matches: bool = True,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    anchors: Tensor, gt: BoxList,  # (Na,4), (Ng,4)
+    high_thresh: float = 0.95, low_thresh: float = 0.05,
+    allow_low_quality_matches: bool = True
+) -> tuple[Tensor, Tensor, Tensor]:
     if gt.boxes.numel() == 0:
         raise ValueError("No ground-truth boxes provided for matching.")
     if gt.boxes.ndim != 2 or gt.boxes.size(1) != 4:
@@ -131,26 +120,22 @@ def match_anchors_to_gt(
     if allow_low_quality_matches:
         best_anchor_per_gt = ious.argmax(dim=0)    # (Ng,)
         pos[best_anchor_per_gt] = True
-        matched[best_anchor_per_gt] = torch.arange(gt.boxes.size(0), device=anchors.device)
+        matched[best_anchor_per_gt] = torch.arange(gt.boxes.size(0), anchors.device)
 
-    labels = torch.zeros((anchors.size(0),), dtype=torch.long, device=anchors.device)
+    labels = torch.zeros((anchors.size(0),), torch.long, anchors.device)
     labels[pos] = gt.labels[matched[pos]]
 
     matched_gt_inds = matched.clone()
     matched_gt_inds[neg] = -1
 
-    bbox_targets = torch.zeros((anchors.size(0), 4), device=anchors.device)
+    bbox_targets = torch.zeros((anchors.size(0), 4), anchors.device)
     if pos.any():
         bbox_targets[pos] = encode_boxes(anchors[pos], gt.boxes[matched[pos]])
 
     return labels, bbox_targets, matched_gt_inds
 
 
-def aggregate_boxes(
-    boxlist: BoxList,
-    iou_merge_thresh: float = 0.5,  # IoU threshold to consider boxes for merging
-    min_group_size: int = 1,  # Minimum number of boxes in a group to perform merging
-) -> BoxList:
+def aggregate_boxes(boxlist: BoxList, iou_merge_thresh: float = 0.5, min_group_size: int = 1) -> BoxList:
     boxes = boxlist.boxes
     labels = boxlist.labels
     scores = boxlist.scores
@@ -158,9 +143,9 @@ def aggregate_boxes(
     if boxes.numel() == 0:
         return boxlist
     if scores is None:
-        scores = torch.ones((boxes.size(0),), device=boxes.device, dtype=torch.float32)
+        scores = torch.ones((boxes.size(0),), boxes.device, torch.float32)
     else:
-        scores = scores.to(dtype=torch.float32)
+        scores = scores.to(torch.float32)
 
     out_boxes, out_scores, out_labels = [], [], []
 
@@ -176,7 +161,7 @@ def aggregate_boxes(
         b = b[order]
         s = s[order]
 
-        kept = torch.ones((b.size(0),), dtype=torch.bool, device=b.device)
+        kept = torch.ones((b.size(0),), torch.bool, b.device)
 
         for i in range(b.size(0)):
             if not kept[i]:
@@ -211,9 +196,4 @@ def aggregate_boxes(
     out_labels = torch.stack(out_labels, dim=0)
 
     order = torch.argsort(out_scores, descending=True)
-    return BoxList(
-        boxes=out_boxes[order],
-        scores=out_scores[order],
-        labels=out_labels[order],
-        image_size=boxlist.image_size,
-    )
+    return BoxList(boxes=out_boxes[order], scores=out_scores[order], labels=out_labels[order], image_size=boxlist.image_size)
