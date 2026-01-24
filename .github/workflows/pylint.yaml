@@ -1,0 +1,45 @@
+name: Lint (py)
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pylint ruff
+
+      - name: Lint (py)
+        shell: bash
+        run: |
+          set -e
+          mapfile -t PY_FILES < <(git ls-files '*.py')
+
+          echo "Python files: ${#PY_FILES[@]}"
+
+          if [ ${#PY_FILES[@]} -gt 0 ]; then
+            pylint "${PY_FILES[@]}"
+          else
+            echo "No .py files found, skipping pylint"
+          fi
+
+          ruff check .
