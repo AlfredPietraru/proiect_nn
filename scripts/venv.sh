@@ -1,8 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_DIR="${REPO_DIR:-${SCRIPT_DIR}}"
+# Run it from previous directory to create venv in the repo root
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+REPO_DIR="$(dirname "${SCRIPT_DIR}")"
 
 VENV_DIR="${VENV_DIR:-${REPO_DIR}/.venv}"
 REQ_FILE="${REQ_FILE:-${REPO_DIR}/requirements.txt}"
