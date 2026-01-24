@@ -51,7 +51,7 @@ def collate_clone_images(batch: List[Any]) -> Tuple[torch.Tensor, List[Any]]:
     return torch.stack(imgs_out, dim=0), list(targets)
 
 
-def stats_mean_std(dataset: Dataset, max_samples: int = 3000) -> tuple[list[float], list[float]]:
+def stats_mean_std(dataset: Dataset, max_samples: int = 3000) -> Tuple[List[float], List[float]]:
     """Mean and standard deviation calculation for image datasets."""
     loader = DataLoader(
         dataset, batch_size=64, shuffle=False,

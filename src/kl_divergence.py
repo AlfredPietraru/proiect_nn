@@ -10,21 +10,21 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from models.builders import build_model, build_optimizer, build_scheduler
-from models.hyperparams import ExperimentConfig
-from models.kl import (
+from models import (
+    ExperimentConfig,
     WeakStrongKDD, CrossDatasetKDD,
-    ClassProjector, FeatureKDD, BoxMatchKDD)
+    ClassProjector, FeatureKDD, BoxMatchKDD,
+    evaluate_cam_bboxes,
+    build_model, build_optimizer, build_scheduler)
 from core import mean_history
 from utils import (
     load_checkpoint, save_checkpoint,
     visualize_weight_distribution, visualize_gradients, visualize_activations)
-from data.visualize import (
+from data import (
     TrainingCurveSupervised,
     kl_divergence, plot_kl_stagewise,
     plot_cross_arch_kl, plot_cross_dataset_kl,
     agreement_matrix, plot_agreement_heatmap, plot_agreement_ema_vs_kdd)
-from models.gradcam_eval import evaluate_cam_bboxes
 
 
 def softmax_mean(logits: torch.Tensor) -> np.ndarray:
@@ -156,7 +156,7 @@ def pipeline_kdd(
     data: Dict[str, DataLoader],
     device: torch.device,
     teacher_ckpt: str, student_ckpt: str,
-    metric_keys: List[str]
+    metric_keys: List[str], top_k: int
 ) -> None:
     teacher = build_model(cfg=cfg).to(device)
     student = build_model(cfg=cfg).to(device)
@@ -205,8 +205,10 @@ def pipeline_kdd(
             xs = img_strong[:min(64, img_strong.size(0))].to(device, non_blocking=True)
 
             with torch.no_grad():
-                t_logits = teacher(xw)
-                s_logits = student(xs)
+                get_logits_t = getattr(teacher, "predict_class_logits", None)
+                get_logits_s = getattr(student, "predict_class_logits", None)
+                t_logits = get_logits_t(xw) if callable(get_logits_t) else teacher(xw)
+                s_logits = get_logits_s(xs) if callable(get_logits_s) else student(xs)
 
             p_t = softmax_mean(t_logits)
             p_s = softmax_mean(s_logits)
@@ -217,8 +219,8 @@ def pipeline_kdd(
                 kl_ema=kl_ema_curve, kl_teacher=kl_teacher_curve, kl_kdd=kl_kdd_curve, arch_name=str(cfg.model.arch), 
                 show=False, save_path=os.path.join(graphs_dir, f"kdd_{cfg.model.arch}_kl_stagewise.png"))
 
-            t_lab = t_logits.argmax(dim=1).detach().cpu().numpy()
-            s_lab = s_logits.argmax(dim=1).detach().cpu().numpy()
+            t_lab = torch.topk(t_logits, k=top_k, dim=1).indices.squeeze(1).detach().cpu().numpy()
+            s_lab = torch.topk(s_logits, k=top_k, dim=1).indices.squeeze(1).detach().cpu().numpy()
 
             class_names = [str(i) for i in range(int(cfg.data.num_classes))]
             cm = agreement_matrix(

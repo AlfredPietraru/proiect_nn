@@ -5,6 +5,7 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 import torch
+from torch import Tensor
 from torch.utils.data import DataLoader
 from torchvision.ops import batched_nms
 from tqdm import tqdm
@@ -13,35 +14,27 @@ from loguru import logger
 from utils import (
     visualize_weight_distribution,
     visualize_gradients, visualize_activations,
-    plot_dists)
-from utils import load_checkpoint, save_checkpoint
-from core import (
-    move_images_to_device, move_targets_to_device, 
-    stats_mean_std)
-from models.builders import build_model, build_scheduler, build_optimizer
+    plot_dists, load_checkpoint, save_checkpoint)
+from core import move_images_to_device, move_targets_to_device, stats_mean_std
+from models import (
+    EarlyStopping, ExperimentConfig, EMA,
+    evaluate_cam_bboxes,
+    build_model, build_scheduler, build_optimizer
+)
 from bbox import BoxList, box_iou
-from models.early_stopping import EarlyStopping
-from models.hyperparams import ExperimentConfig
-from models.ema import EMA
-from evaluate import DetectionMetrics, IoUMetrics
-from data.visualize import (
+from data import (
     TrainingCurveSemiSupervised,
     plot_agreement_teacher_vs_student,
     plot_confusion_matrix, detect_grid)
-from models.gradcam_eval import evaluate_cam_bboxes
+from evaluate import DetectionMetrics, IoUMetrics
 
 
-def top_k_per_class(
-    boxes: torch.Tensor,
-    labels: torch.Tensor,
-    scores: torch.Tensor,
-    k: int
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+def top_k_per_class(boxes: Tensor, labels: Tensor, scores: Tensor, k: int) -> Tuple[Tensor, Tensor, Tensor]:
     """Keep top-k scoring boxes per class."""
     if k is None:
         return boxes, labels, scores
     # Keep top-k scoring boxes per class
-    keep_idx: List[torch.Tensor] = []
+    keep_idx: List[Tensor] = []
     for cls in labels.unique():
         # Get indices of boxes for this class and their scores
         cls_idx = (labels == cls).nonzero(as_tuple=False).squeeze(1)
@@ -59,12 +52,7 @@ def top_k_per_class(
     return boxes[keep], labels[keep], scores[keep]
 
 
-def top_k_total(
-    boxes: torch.Tensor,
-    labels: torch.Tensor,
-    scores: torch.Tensor,
-    k: int
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+def top_k_total(boxes: Tensor, labels: Tensor, scores: Tensor, k: int) -> Tuple[Tensor, Tensor, Tensor]:
     """Keep top-k scoring boxes total (regardless of class)."""
     if k is None or scores.numel() <= k:
         return boxes, labels, scores
@@ -75,17 +63,17 @@ def top_k_total(
 @torch.no_grad()
 def generate_pseudo_labels(
     model: torch.nn.Module,
-    images: List[torch.Tensor],
+    images: List[Tensor],
     device: torch.device,
     score_thr: float, nms_iou: float,
     top_k_per_cls: int = 60, # per-class candidates before NMS
     top_k_total_pre: int = 600, # total candidates per image before NMS
     top_k_total_post: int = 300 # final max per image after NMS
-) -> List[Dict[str, torch.Tensor]]:
+) -> List[Dict[str, Tensor]]:
     model.eval()
     images = move_images_to_device(images, device)
     outputs, _ = model(images, None)
-    pseudo: List[Dict[str, torch.Tensor]] = []
+    pseudo: List[Dict[str, Tensor]] = []
     for out in outputs:
         boxes, labels, scores = out["boxes"], out["labels"], out["scores"]
         # Early exit if no boxes at all
@@ -114,15 +102,23 @@ def generate_pseudo_labels(
     return pseudo
 
 
-
-def filter_nonempty_pseudo(
-    pseudo: List[Dict[str, torch.Tensor]]
-) -> Tuple[List[Dict[str, torch.Tensor]], List[int]]:
+def filter_nonempty_pseudo(pseudo: List[Dict[str, Tensor]]) -> Tuple[List[Dict[str, Tensor]], List[int]]:
     """Filter out images with no pseudo boxes, return kept pseudo and their indices."""
     keep_idx = [i for i, t in enumerate(pseudo) if t["boxes"].numel() > 0]
     kept = [pseudo[i] for i in keep_idx]  # Keep only pseudo-labels with non-empty boxes
     kept = [{"boxes": t["boxes"], "labels": t["labels"]} for t in kept]
     return kept, keep_idx
+
+
+def sum_loss(loss_dict: Dict[str, Tensor], keys: List[str]) -> Tensor:
+    acc = None
+    for k in keys:
+        if k in loss_dict:
+            acc = loss_dict[k] if acc is None else (acc + loss_dict[k])
+    if acc is None:
+        acc = torch.stack([v for v in loss_dict.values()]).sum() \
+        if loss_dict else torch.zeros((), device=next(iter(loss_dict.values())).device)
+    return acc
 
 
 def train_semi_supervised_one_epoch(
@@ -157,6 +153,11 @@ def train_semi_supervised_one_epoch(
         if not keep_idx:
             continue
 
+        # Supervised loss on labeled data (batch from strong loader)
+        img_labeled, targets_labeled = next(labeled_it)
+        img_labeled = move_images_to_device(img_labeled, device)
+        targets_labeled = move_targets_to_device(targets_labeled, device)
+
         # Move strong images and kept pseudo-labels to device
         img_strong = move_images_to_device(img_strong, device)
         img_strong = [img_strong[i] for i in keep_idx]
@@ -164,17 +165,12 @@ def train_semi_supervised_one_epoch(
 
         # Student forward pass on strongly augmented images with pseudo-labels
         _, loss_u = student(img_strong, pseudo_kept)
-        unsup_cls = loss_u["loss_classifier"] + loss_u["loss_objectness"]
+        unsup_loss = sum_loss(loss_u, metric_unsup)
 
-        # Supervised loss on labeled data (batch from strong loader)
-        img_labeled, targets_labeled = next(labeled_it)
-        img_labeled = move_images_to_device(img_labeled, device)
-        targets_labeled = move_targets_to_device(targets_labeled, device)
-
-        # Student forward pass on labeled data
+        # Student supervised loss on labeled data (batch from strong loader)
         _, loss_s = student(img_labeled, targets_labeled)
-        sup = sum(loss_s.values())
-        loss = sup + lambda_unsup * unsup_cls
+        sup_loss = sum_loss(loss_s, metric_sup)
+        loss = sup_loss + lambda_unsup * unsup_loss
 
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
@@ -182,7 +178,7 @@ def train_semi_supervised_one_epoch(
         scheduler.step()
 
         # Update teacher EMA model with current student weights
-        teacher.update(student)
+        teacher.update(student, conf_mean=None)
 
         # Accumulate metrics for logging after epoch
         for k in metric_unsup:

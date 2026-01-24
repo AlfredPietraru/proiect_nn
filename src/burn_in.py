@@ -4,7 +4,7 @@ from typing import Dict, List
 import os
 import numpy as np
 
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 import torch
 from tqdm import tqdm
 
@@ -16,8 +16,7 @@ from core import (
     mean_history, stats_mean_std)
 from utils import (
     visualize_weight_distribution,
-    visualize_gradients, 
-    visualize_activations,
+    visualize_gradients, visualize_activations,
     plot_dists)
 from data.visualize import (
     TrainingCurveSupervised,
@@ -67,10 +66,7 @@ def train_burn_in_one_epoch(
     return mean_history(history, steps)
 
 
-def collect_labels_from_det_dataset(
-    ds: torch.utils.data.Dataset, 
-    max_samples: int
-) -> List[int]:
+def collect_labels_from_det_dataset(ds: Dataset, max_samples: int) -> List[int]:
     y: List[int] = []
     for i in range(min(len(ds), int(max_samples))):
         item = ds[i]
@@ -176,8 +172,9 @@ def pipeline_burn_in(
 
     for epoch in tqdm(range(cfg.train.epochs), desc="Burn-in epochs"):
         train_hist = train_burn_in_one_epoch(
-            model=model, optimizer=optimizer, scheduler=lr_scheduler, data=data, device=device,
-            max_iter=(cfg.train.log_interval * 999999), metric_keys=metric_keys)
+            model=model, optimizer=optimizer, 
+            scheduler=lr_scheduler, data=data, device=device,
+            max_iter=cfg.train.log_interval, metric_keys=metric_keys)
 
         plotter.update(train_hist)
         plotter.plot_total(
