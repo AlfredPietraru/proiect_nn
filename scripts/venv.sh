@@ -1,7 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-# Run it from previous directory to create venv in the repo root
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 REPO_DIR="$(dirname "${SCRIPT_DIR}")"
 
@@ -11,7 +10,6 @@ REQ_FILE="${REQ_FILE:-${REPO_DIR}/requirements.txt}"
 echo "[venv] Repo: ${REPO_DIR}"
 echo "[venv] Venv: ${VENV_DIR}"
 echo "[venv] Requirements: ${REQ_FILE}"
-
 if [[ ! -f "${REQ_FILE}" ]]; then
   echo "ERROR: requirements.txt not found at: ${REQ_FILE}"
   exit 1
@@ -25,3 +23,4 @@ python -m pip install -r "${REQ_FILE}"
 
 echo "[venv] OK. Activate with:"
 echo "  source \"${VENV_DIR}/bin/activate\""
+echo "[venv] Done."
