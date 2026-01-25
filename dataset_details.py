@@ -23,16 +23,15 @@ def extract_class_names(classes: Mapping[int, ClassInfo]) -> List[str]:
 
 def collect_detection_labels(
     loader: DataLoader,
-    max_batches: int
+    max_batches: int = 9999
 ) -> np.ndarray:
     """"Collect all object detection labels from the loader."""
     labels: List[int] = []
-
     for bidx, (_, targets) in enumerate(loader):
         if bidx >= max_batches:
             break
 
-        for t in targets:
+        for t in targets: 
             y = t.get("labels", None)
             if y is None:
                 continue
@@ -138,13 +137,13 @@ def dataset_details(
     os.makedirs(save_path, exist_ok=True)
     class_names = extract_class_names(classes)
 
-    y_train_obj = collect_detection_labels(train_loader, max_batches)
-    y_test_obj = collect_detection_labels(test_loader, max_batches)
+    y_train_obj = collect_detection_labels(train_loader)
+    y_test_obj = collect_detection_labels(test_loader)
 
     if y_train_obj.size > 0 or y_test_obj.size > 0:
         plot_class_distribution(
             y_train_obj, y_test_obj, class_names, 
-            show=show, max_xticks=20, rotate=60)
+            show=show, max_xticks=20, rotate=60, save_path=os.path.join(save_path, "burn_in_class_distribution"))
         plt_close(fig=True)
 
     X_train = collect_image_embeddings(train_loader, max_batches, max_images, embed_hw)

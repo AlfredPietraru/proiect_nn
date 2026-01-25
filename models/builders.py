@@ -23,7 +23,7 @@ def build_model(cfg: ExperimentConfig) -> torch.nn.Module:
         return get_model_fasterrcnn(cfg=cfg)
     if arch == "resnet50_gradcampp":
         return get_model_resnet_gradcam(cfg=cfg)
-    if arch == "yolo11":
+    if arch == "yolo11n":
         return get_model_yolo11(cfg=cfg)
     raise ValueError(f"Unknown Model Architecture: {arch}")
 

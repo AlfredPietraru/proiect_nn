@@ -73,7 +73,7 @@ def dataset_max_objects(dataset: str) -> int:
 class DataCfg:
     dataset: DatasetName = "voc"
     root: str = "datasets"
-    percentage = 0.025
+    percentage = 0.05
 
     voc_dir: str = "VOCdevkit"
     visdrone_dir: str = "VisDrone2019-DET"
@@ -101,7 +101,7 @@ class DataCfg:
 
 @dataclass
 class ModelCfg:
-    arch: ArchName = "fasterrcnn"
+    arch: ArchName = "yolo11n"
     num_classes: int = 20   # excluding background
 
     pretrained: bool = True

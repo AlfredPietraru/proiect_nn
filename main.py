@@ -52,6 +52,7 @@ if __name__ == "__main__":
     # After this phase, we will have a supervised model checkpoint
     pipeline_burn_in(cfg=cfg, data=data, device=device, metric_keys=METRIC_BURN_IN)
     last_ckpt = os.path.join(checkpoint_dir, f"checkpoint_epoch_{cfg.train.epochs}.pth")
+
     # Semi-supervised phase using Unbiased Teacher approach
     # Using both labeled and unlabeled data for training with teacher-student paradigm
     # Paradigm uses pseudo-labeling and consistency regularization and EMA (Exponential Moving Average)
@@ -59,6 +60,7 @@ if __name__ == "__main__":
     # and even with different augmentations of the same image, the teacher model can provide consistent pseudo-labels
     # and with different architectures for teacher and student models, the student can learn complementary features
     # After this phase, we will have a semi-supervised model checkpoint
+
     pipeline_semi_supervised(cfg, last_ckpt, data, device, metric_sup=METRIC_SUP, metric_unsup=METRIC_UNSUP)
     # Knowledge Distillation phase using KDD approach
     # Using both labeled and unlabeled data for training with teacher-student paradigm
